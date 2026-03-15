@@ -79,30 +79,51 @@ export async function POST(req: NextRequest) {
       }, { status: 403 });
     }
 
-    const clock = calculateClock({
-      turn: currentTurn,
-      white_time_remaining_seconds: game.white_time_remaining_seconds,
-      black_time_remaining_seconds: game.black_time_remaining_seconds,
-      last_move_at: game.last_move_at,
-    });
+    const nowIso = new Date().toISOString();
 
-    if (clock.timedOut) {
-      const winnerId =
-        clock.timedOutColor === "white" ? game.black_player_id : game.white_player_id;
+    let clock: {
+      whiteRemaining: number;
+      blackRemaining: number;
+      activeColor: "white" | "black";
+      timedOut: boolean;
+      timedOutColor?: "white" | "black";
+    };
 
-      await supabase
-        .from("games")
-        .update({
-          status: "finished",
-          winner_id: winnerId,
-          end_reason: "timeout",
-          white_time_remaining_seconds: clock.whiteRemaining,
-          black_time_remaining_seconds: clock.blackRemaining,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", gameId);
+    if (!game.last_move_at) {
+      console.log('[Move API] First move - using initial time values');
+      clock = {
+        whiteRemaining: game.white_time_remaining_seconds,
+        blackRemaining: game.black_time_remaining_seconds,
+        activeColor: currentTurn,
+        timedOut: false,
+        timedOutColor: undefined,
+      };
+    } else {
+      clock = calculateClock({
+        turn: currentTurn,
+        white_time_remaining_seconds: game.white_time_remaining_seconds,
+        black_time_remaining_seconds: game.black_time_remaining_seconds,
+        last_move_at: game.last_move_at,
+      });
 
-      return NextResponse.json({ error: "Game already ended on time" }, { status: 400 });
+      if (clock.timedOut) {
+        const winnerId =
+          clock.timedOutColor === "white" ? game.black_player_id : game.white_player_id;
+
+        await supabase
+          .from("games")
+          .update({
+            status: "finished",
+            winner_id: winnerId,
+            end_reason: "timeout",
+            white_time_remaining_seconds: clock.whiteRemaining,
+            black_time_remaining_seconds: clock.blackRemaining,
+            updated_at: nowIso,
+          })
+          .eq("id", gameId);
+
+        return NextResponse.json({ error: "Game already ended on time" }, { status: 400 });
+      }
     }
 
     console.log('[Move API] Applying move to position:', game.current_fen);
@@ -120,7 +141,6 @@ export async function POST(req: NextRequest) {
     }
 
     const nextTurn = playerColor === "white" ? "black" : "white";
-    const nowIso = new Date().toISOString();
 
     const newWhiteTime =
       playerColor === "white" ? clock.whiteRemaining : game.white_time_remaining_seconds;
@@ -131,7 +151,20 @@ export async function POST(req: NextRequest) {
     let status: 'active' | 'finished' = "active";
     let winnerId: string | null = null;
     let endReason: string | null = null;
-    let timeoutAt: string | null = getNextTimeoutAt(nextTurn, newWhiteTime, newBlackTime, new Date());
+    let timeoutAt: string | null = null;
+
+    try {
+      timeoutAt = getNextTimeoutAt(nextTurn, newWhiteTime, newBlackTime, new Date());
+      console.log('[Move API] Next timeout calculated:', {
+        nextTurn,
+        newWhiteTime,
+        newBlackTime,
+        timeoutAt,
+      });
+    } catch (error) {
+      console.error('[Move API] Error calculating timeout:', error);
+      timeoutAt = new Date(Date.now() + 172800 * 1000).toISOString();
+    }
 
     if (moveResult.isCheckmate) {
       status = "finished";

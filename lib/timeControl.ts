@@ -70,7 +70,18 @@ export function getNextTimeoutAt(
   from = new Date()
 ): string {
   const seconds = turn === "white" ? whiteRemaining : blackRemaining;
-  return new Date(from.getTime() + seconds * 1000).toISOString();
+
+  if (!seconds || isNaN(seconds) || seconds <= 0) {
+    return new Date(from.getTime() + 86400 * 1000).toISOString();
+  }
+
+  const targetTime = from.getTime() + seconds * 1000;
+
+  if (isNaN(targetTime)) {
+    return new Date(from.getTime() + 86400 * 1000).toISOString();
+  }
+
+  return new Date(targetTime).toISOString();
 }
 
 export function formatTime(seconds: number): string {
