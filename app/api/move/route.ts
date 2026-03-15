@@ -114,12 +114,21 @@ export async function POST(req: NextRequest) {
 
       console.log('[Move API] First move clock:', clock);
     } else {
-      clock = calculateClock({
-        turn: currentTurn,
-        white_time_remaining_seconds: game.white_time_remaining_seconds,
-        black_time_remaining_seconds: game.black_time_remaining_seconds,
-        last_move_at: game.last_move_at,
-      });
+      console.log('[Move API] Calculating clock for non-first move');
+      try {
+        clock = calculateClock({
+          turn: currentTurn,
+          white_time_remaining_seconds: game.white_time_remaining_seconds ?? 172800,
+          black_time_remaining_seconds: game.black_time_remaining_seconds ?? 172800,
+          last_move_at: game.last_move_at,
+        });
+        console.log('[Move API] Clock calculated:', clock);
+      } catch (error) {
+        console.error('[Move API] Clock calculation error:', error);
+        return NextResponse.json({
+          error: `Clock calculation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }, { status: 500 });
+      }
 
       if (clock.timedOut) {
         const winnerId =
@@ -176,7 +185,22 @@ export async function POST(req: NextRequest) {
     let endReason: string | null = null;
     let timeoutAt: string | null = null;
 
+    console.log('[Move API] About to calculate timeout with:', {
+      nextTurn,
+      newWhiteTime,
+      newBlackTime,
+      typeOf_newWhiteTime: typeof newWhiteTime,
+      typeOf_newBlackTime: typeof newBlackTime,
+      isNaN_newWhiteTime: isNaN(newWhiteTime),
+      isNaN_newBlackTime: isNaN(newBlackTime),
+    });
+
     try {
+      if (typeof newWhiteTime !== 'number' || typeof newBlackTime !== 'number' ||
+          isNaN(newWhiteTime) || isNaN(newBlackTime)) {
+        throw new Error(`Invalid time values: white=${newWhiteTime}, black=${newBlackTime}`);
+      }
+
       timeoutAt = getNextTimeoutAt(nextTurn, newWhiteTime, newBlackTime, new Date());
       console.log('[Move API] Next timeout calculated:', {
         nextTurn,
@@ -186,6 +210,10 @@ export async function POST(req: NextRequest) {
       });
     } catch (error) {
       console.error('[Move API] Error calculating timeout:', error);
+      console.error('[Move API] Timeout error details:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       timeoutAt = new Date(Date.now() + 172800 * 1000).toISOString();
     }
 
@@ -238,7 +266,16 @@ export async function POST(req: NextRequest) {
 
     if (moveInsertError) {
       console.error('[Move API] Failed to insert move:', moveInsertError);
-      return NextResponse.json({ error: "Failed to save move" }, { status: 500 });
+      console.error('[Move API] Move insert error details:', {
+        message: moveInsertError.message,
+        details: moveInsertError.details,
+        hint: moveInsertError.hint,
+        code: moveInsertError.code,
+      });
+      return NextResponse.json({
+        error: "Failed to save move",
+        details: moveInsertError.message
+      }, { status: 500 });
     }
 
     console.log('[Move API] Move inserted successfully');
@@ -265,7 +302,16 @@ export async function POST(req: NextRequest) {
 
     if (updateError) {
       console.error('[Move API] Failed to update game:', updateError);
-      return NextResponse.json({ error: "Failed to update game" }, { status: 500 });
+      console.error('[Move API] Game update error details:', {
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint,
+        code: updateError.code,
+      });
+      return NextResponse.json({
+        error: "Failed to update game",
+        details: updateError.message
+      }, { status: 500 });
     }
 
     console.log('[Move API] Game updated successfully');
@@ -284,9 +330,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(response);
   } catch (error) {
     console.error('[Move API] Unexpected error:', error);
+    console.error('[Move API] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('[Move API] Error details:', {
+      type: typeof error,
+      name: error instanceof Error ? error.name : undefined,
+      message: error instanceof Error ? error.message : String(error),
+      error: JSON.stringify(error, null, 2),
+    });
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Unknown server error",
+        type: error instanceof Error ? error.name : typeof error,
       },
       { status: 500 }
     );

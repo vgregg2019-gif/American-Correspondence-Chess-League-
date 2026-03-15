@@ -69,15 +69,33 @@ export function getNextTimeoutAt(
   blackRemaining: number,
   from = new Date()
 ): string {
+  console.log('[timeControl] getNextTimeoutAt called with:', {
+    turn,
+    whiteRemaining,
+    blackRemaining,
+    from: from.toISOString(),
+    typeOf_white: typeof whiteRemaining,
+    typeOf_black: typeof blackRemaining,
+  });
+
   const seconds = turn === "white" ? whiteRemaining : blackRemaining;
 
+  console.log('[timeControl] Active player seconds:', seconds);
+
   if (!seconds || isNaN(seconds) || seconds <= 0) {
+    console.log('[timeControl] Invalid seconds, using 24hr fallback');
     return new Date(from.getTime() + 86400 * 1000).toISOString();
   }
 
   const targetTime = from.getTime() + seconds * 1000;
 
+  console.log('[timeControl] Target time calculated:', {
+    targetTime,
+    targetTimeDate: new Date(targetTime).toISOString(),
+  });
+
   if (isNaN(targetTime)) {
+    console.log('[timeControl] Invalid target time, using 24hr fallback');
     return new Date(from.getTime() + 86400 * 1000).toISOString();
   }
 
