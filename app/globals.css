@@ -23,3 +23,12 @@ body {
     @apply bg-accl-charcoal border border-accl-gray rounded-lg p-6;
   }
 }
+
+@layer utilities {
+  .select-none {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+}

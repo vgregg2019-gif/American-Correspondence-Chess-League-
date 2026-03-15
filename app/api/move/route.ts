@@ -29,7 +29,23 @@ export async function POST(req: NextRequest) {
 
     const { data: game, error: gameError } = await supabase
       .from("games")
-      .select("*")
+      .select(`
+        id,
+        white_player_id,
+        black_player_id,
+        current_fen,
+        turn,
+        status,
+        winner_id,
+        end_reason,
+        time_control,
+        white_time_remaining_seconds,
+        black_time_remaining_seconds,
+        last_move_at,
+        timeout_at,
+        created_at,
+        updated_at
+      `)
       .eq("id", gameId)
       .single();
 
