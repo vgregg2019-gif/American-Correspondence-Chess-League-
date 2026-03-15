@@ -19,7 +19,7 @@ interface Game {
   id: string;
   white_player_id: string;
   black_player_id: string;
-  current_fen: string;
+  current_fen: string | null;
   status: 'active' | 'finished';
   turn: 'white' | 'black';
   white_time_remaining_seconds: number;
@@ -28,8 +28,8 @@ interface Game {
   timeout_at: string | null;
   winner_id: string | null;
   end_reason: string | null;
-  white_player: Profile;
-  black_player: Profile;
+  white_player: Profile | Profile[];
+  black_player: Profile | Profile[];
 }
 
 interface Move {
@@ -38,6 +38,8 @@ interface Move {
   move_number: number;
   player_id: string;
 }
+
+const DEFAULT_STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 export default function GamePage() {
   const params = useParams();
@@ -48,15 +50,18 @@ export default function GamePage() {
   const [game, setGame] = useState<Game | null>(null);
   const [moves, setMoves] = useState<Move[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [movingPiece, setMovingPiece] = useState(false);
   const [whiteTime, setWhiteTime] = useState(0);
   const [blackTime, setBlackTime] = useState(0);
 
   const loadGame = useCallback(async () => {
     try {
+      console.log('Loading game:', gameId);
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
+        console.log('No session, redirecting to login');
         router.replace('/login');
         return;
       }
@@ -73,8 +78,20 @@ export default function GamePage() {
         .eq('id', gameId)
         .maybeSingle();
 
-      if (gameError || !gameData) {
-        router.replace('/dashboard');
+      console.log('Game data:', gameData);
+      console.log('Game error:', gameError);
+
+      if (gameError) {
+        console.error('Error loading game:', gameError);
+        setError(`Failed to load game: ${gameError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      if (!gameData) {
+        console.log('Game not found');
+        setError('Game not found');
+        setLoading(false);
         return;
       }
 
@@ -82,7 +99,9 @@ export default function GamePage() {
         gameData.white_player_id !== session.user.id &&
         gameData.black_player_id !== session.user.id
       ) {
-        router.replace('/dashboard');
+        console.log('User not in this game');
+        setError('You are not a player in this game');
+        setLoading(false);
         return;
       }
 
@@ -98,11 +117,14 @@ export default function GamePage() {
       setWhiteTime(clock.whiteRemaining);
       setBlackTime(clock.blackRemaining);
 
-      const { data: movesData } = await supabase
+      const { data: movesData, error: movesError } = await supabase
         .from('moves')
         .select('*')
         .eq('game_id', gameId)
         .order('created_at', { ascending: true });
+
+      console.log('Moves data:', movesData);
+      console.log('Moves error:', movesError);
 
       if (movesData) {
         setMoves(movesData);
@@ -111,6 +133,7 @@ export default function GamePage() {
       setLoading(false);
     } catch (err) {
       console.error('Error loading game:', err);
+      setError(`Unexpected error: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setLoading(false);
     }
   }, [gameId, router]);
@@ -243,17 +266,30 @@ export default function GamePage() {
     );
   }
 
-  if (!game) {
+  if (error || !game) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-400">Game not found</p>
+      <div className="min-h-screen flex flex-col items-center justify-center p-6">
+        <p className="text-red-400 mb-4">{error || 'Game not found'}</p>
+        <Link
+          href="/dashboard"
+          className="text-accl-red hover:text-accl-red-light transition-colors"
+        >
+          ← Back to Dashboard
+        </Link>
       </div>
     );
   }
 
   const isWhite = game.white_player_id === userId;
   const playerColor = isWhite ? 'white' : 'black';
-  const opponent = isWhite ? game.black_player : game.white_player;
+
+  const whitePlayerData = Array.isArray(game.white_player) ? game.white_player[0] : game.white_player;
+  const blackPlayerData = Array.isArray(game.black_player) ? game.black_player[0] : game.black_player;
+
+  const opponent = isWhite ? blackPlayerData : whitePlayerData;
+  const currentPlayer = isWhite ? whitePlayerData : blackPlayerData;
+
+  const boardPosition = game.current_fen || DEFAULT_STARTING_FEN;
 
   return (
     <div className="min-h-screen p-6">
@@ -287,18 +323,20 @@ export default function GamePage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <div className="mb-4">
-              <GameTimer
-                initialSeconds={isWhite ? blackTime : whiteTime}
-                isActive={game.status === 'active' && game.turn !== playerColor}
-                playerName={opponent.username}
-                color={isWhite ? 'black' : 'white'}
-              />
-            </div>
+            {opponent && (
+              <div className="mb-4">
+                <GameTimer
+                  initialSeconds={isWhite ? blackTime : whiteTime}
+                  isActive={game.status === 'active' && game.turn !== playerColor}
+                  playerName={opponent.username || 'Opponent'}
+                  color={isWhite ? 'black' : 'white'}
+                />
+              </div>
+            )}
 
             <div className="flex justify-center mb-4">
               <ChessBoard
-                position={game.current_fen}
+                position={boardPosition}
                 onMoveMade={handleMove}
                 playerColor={playerColor}
                 currentTurn={game.turn}
@@ -306,14 +344,16 @@ export default function GamePage() {
               />
             </div>
 
-            <div className="mb-4">
-              <GameTimer
-                initialSeconds={isWhite ? whiteTime : blackTime}
-                isActive={game.status === 'active' && game.turn === playerColor}
-                playerName={game[isWhite ? 'white_player' : 'black_player'].username}
-                color={playerColor}
-              />
-            </div>
+            {currentPlayer && (
+              <div className="mb-4">
+                <GameTimer
+                  initialSeconds={isWhite ? whiteTime : blackTime}
+                  isActive={game.status === 'active' && game.turn === playerColor}
+                  playerName={currentPlayer.username || 'You'}
+                  color={playerColor}
+                />
+              </div>
+            )}
           </div>
 
           <div className="space-y-4">
