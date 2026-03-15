@@ -86,11 +86,28 @@ export default function DashboardPage() {
 
       if (gamesData) {
         console.log('[Dashboard] Total games found:', gamesData.length);
+
+        console.log('[Dashboard] Raw games data:', gamesData.map(g => ({
+          id: g.id,
+          status: g.status,
+          white_player_id: g.white_player_id,
+          black_player_id: g.black_player_id,
+          currentUserId: session.user.id,
+          isUserInGame: g.white_player_id === session.user.id || g.black_player_id === session.user.id,
+        })));
+
         const active = gamesData.filter((g) => g.status === 'active');
         const completed = gamesData.filter((g) => g.status === 'finished');
+
         console.log('[Dashboard] Active games:', active.length);
         console.log('[Dashboard] Completed games:', completed.length);
         console.log('[Dashboard] Active games detail:', active);
+
+        console.log('[Dashboard] Game status breakdown:', {
+          allStatuses: gamesData.map(g => g.status),
+          uniqueStatuses: [...new Set(gamesData.map(g => g.status))],
+        });
+
         setActiveGames(active);
         setCompletedGames(completed);
       }
@@ -141,17 +158,26 @@ export default function DashboardPage() {
           currentPlayerIsWhite: isWhite,
         });
 
+        const gameData = {
+          white_player_id: whiteId,
+          black_player_id: blackId,
+          status: 'active',
+          timeout_at: new Date(Date.now() + 172800 * 1000).toISOString(),
+        };
+
+        console.log('[Matchmaking] Inserting game with data:', gameData);
+
         const { data: newGame, error: gameError } = await supabase
           .from('games')
-          .insert({
-            white_player_id: whiteId,
-            black_player_id: blackId,
-            timeout_at: new Date(Date.now() + 172800 * 1000).toISOString(),
-          })
+          .insert(gameData)
           .select()
           .single();
 
         console.log('[Matchmaking] Game creation result:', { newGame, gameError });
+
+        if (newGame) {
+          console.log('[Matchmaking] Created game status:', newGame.status);
+        }
 
         if (!gameError && newGame) {
           console.log('[Matchmaking] Navigating to game:', newGame.id);
