@@ -36,7 +36,7 @@ export type Database = {
           id: string;
           white_player_id: string;
           black_player_id: string;
-          fen: string;
+          current_fen: string;
           status: 'active' | 'finished';
           turn: 'white' | 'black';
           white_time_remaining_seconds: number;
@@ -52,7 +52,7 @@ export type Database = {
           id?: string;
           white_player_id: string;
           black_player_id: string;
-          fen?: string;
+          current_fen?: string;
           status?: 'active' | 'finished';
           turn?: 'white' | 'black';
           white_time_remaining_seconds?: number;
@@ -68,7 +68,7 @@ export type Database = {
           id?: string;
           white_player_id?: string;
           black_player_id?: string;
-          fen?: string;
+          current_fen?: string;
           status?: 'active' | 'finished';
           turn?: 'white' | 'black';
           white_time_remaining_seconds?: number;

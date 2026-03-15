@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     }
 
     const moveResult = applyMove({
-      fen: game.fen,
+      fen: game.current_fen,
       move: { from, to, promotion },
     });
 
@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
     const { error: updateError } = await supabase
       .from("games")
       .update({
-        fen: moveResult.fen,
+        current_fen: moveResult.fen,
         turn: status === "active" ? nextTurn : game.turn,
         status,
         winner_id: winnerId,

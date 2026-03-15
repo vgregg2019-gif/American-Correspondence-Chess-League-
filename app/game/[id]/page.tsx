@@ -19,7 +19,7 @@ interface Game {
   id: string;
   white_player_id: string;
   black_player_id: string;
-  fen: string;
+  current_fen: string;
   status: 'active' | 'finished';
   turn: 'white' | 'black';
   white_time_remaining_seconds: number;
@@ -298,7 +298,7 @@ export default function GamePage() {
 
             <div className="flex justify-center mb-4">
               <ChessBoard
-                position={game.fen}
+                position={game.current_fen}
                 onMoveMade={handleMove}
                 playerColor={playerColor}
                 currentTurn={game.turn}
