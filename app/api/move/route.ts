@@ -19,7 +19,12 @@ export async function POST(req: NextRequest) {
 
     if (!gameId || !playerId || !from || !to) {
       console.error('[Move API] Missing required fields');
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      return NextResponse.json({
+        step: "validation",
+        error: "Missing required fields",
+        message: "Required fields: gameId, playerId, from, to",
+        details: { gameId: !!gameId, playerId: !!playerId, from: !!from, to: !!to }
+      }, { status: 400 });
     }
 
     const { data: game, error: gameError } = await supabase
@@ -32,7 +37,14 @@ export async function POST(req: NextRequest) {
 
     if (gameError || !game) {
       console.error('[Move API] Game not found:', gameError);
-      return NextResponse.json({ error: "Game not found" }, { status: 404 });
+      return NextResponse.json({
+        step: "game_fetch",
+        error: "Game not found",
+        message: gameError?.message || "Game does not exist",
+        code: gameError?.code,
+        details: gameError?.details,
+        hint: gameError?.hint
+      }, { status: 404 });
     }
 
     console.log('[Move API] Time values from database:', {
@@ -46,7 +58,12 @@ export async function POST(req: NextRequest) {
     });
 
     if (game.status !== "active") {
-      return NextResponse.json({ error: "Game is not active" }, { status: 400 });
+      return NextResponse.json({
+        step: "game_status",
+        error: "Game is not active",
+        message: `Game status is: ${game.status}`,
+        details: { currentStatus: game.status, requiredStatus: "active" }
+      }, { status: 400 });
     }
 
     const isWhite = game.white_player_id === playerId;
@@ -58,7 +75,16 @@ export async function POST(req: NextRequest) {
         white_player_id: game.white_player_id,
         black_player_id: game.black_player_id,
       });
-      return NextResponse.json({ error: "User is not a player in this game" }, { status: 403 });
+      return NextResponse.json({
+        step: "auth",
+        error: "User is not a player in this game",
+        message: "You are not authorized to make moves in this game",
+        details: {
+          playerId,
+          whitePlayerId: game.white_player_id,
+          blackPlayerId: game.black_player_id
+        }
+      }, { status: 403 });
     }
 
     const playerColor = isWhite ? "white" : "black";
@@ -85,7 +111,10 @@ export async function POST(req: NextRequest) {
         reason: `Current turn is ${currentTurn}, but you are ${playerColor}`,
       });
       return NextResponse.json({
-        error: `Not your turn. Current turn: ${currentTurn}, you are: ${playerColor}`
+        step: "turn_validation",
+        error: "Not your turn",
+        message: `Current turn is ${currentTurn}, you are ${playerColor}`,
+        details: { playerColor, currentTurn, fen: game.current_fen }
       }, { status: 403 });
     }
 
@@ -126,7 +155,16 @@ export async function POST(req: NextRequest) {
       } catch (error) {
         console.error('[Move API] Clock calculation error:', error);
         return NextResponse.json({
-          error: `Clock calculation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+          step: "clock_calculation",
+          error: "Clock calculation failed",
+          message: error instanceof Error ? error.message : 'Unknown error',
+          details: {
+            turn: currentTurn,
+            whiteTime: game.white_time_remaining_seconds,
+            blackTime: game.black_time_remaining_seconds,
+            lastMoveAt: game.last_move_at
+          },
+          stack: error instanceof Error ? error.stack : undefined
         }, { status: 500 });
       }
 
@@ -146,7 +184,16 @@ export async function POST(req: NextRequest) {
           })
           .eq("id", gameId);
 
-        return NextResponse.json({ error: "Game already ended on time" }, { status: 400 });
+        return NextResponse.json({
+          step: "timeout_check",
+          error: "Game already ended on time",
+          message: `${clock.timedOutColor} ran out of time`,
+          details: {
+            timedOutColor: clock.timedOutColor,
+            whiteRemaining: clock.whiteRemaining,
+            blackRemaining: clock.blackRemaining
+          }
+        }, { status: 400 });
       }
     }
 
@@ -161,7 +208,12 @@ export async function POST(req: NextRequest) {
 
     if (!moveResult.ok || !moveResult.fen || !moveResult.san) {
       console.error('[Move API] Illegal move:', moveResult.error);
-      return NextResponse.json({ error: moveResult.error || "Illegal move" }, { status: 400 });
+      return NextResponse.json({
+        step: "move_validation",
+        error: "Illegal move",
+        message: moveResult.error || "The move is not legal in the current position",
+        details: { from, to, promotion, fen: game.current_fen }
+      }, { status: 400 });
     }
 
     const nextTurn = playerColor === "white" ? "black" : "white";
@@ -273,8 +325,13 @@ export async function POST(req: NextRequest) {
         code: moveInsertError.code,
       });
       return NextResponse.json({
+        step: "move_insert",
         error: "Failed to save move",
-        details: moveInsertError.message
+        message: moveInsertError.message,
+        code: moveInsertError.code,
+        details: moveInsertError.details,
+        hint: moveInsertError.hint,
+        moveData: moveInsert
       }, { status: 500 });
     }
 
@@ -309,8 +366,13 @@ export async function POST(req: NextRequest) {
         code: updateError.code,
       });
       return NextResponse.json({
+        step: "game_update",
         error: "Failed to update game",
-        details: updateError.message
+        message: updateError.message,
+        code: updateError.code,
+        details: updateError.details,
+        hint: updateError.hint,
+        gameUpdate
       }, { status: 500 });
     }
 
@@ -339,8 +401,15 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(
       {
+        step: "unexpected_error",
         error: error instanceof Error ? error.message : "Unknown server error",
+        message: "An unexpected error occurred while processing the move",
         type: error instanceof Error ? error.name : typeof error,
+        stack: error instanceof Error ? error.stack : undefined,
+        details: error instanceof Error ? {
+          name: error.name,
+          message: error.message
+        } : { value: String(error) }
       },
       { status: 500 }
     );
