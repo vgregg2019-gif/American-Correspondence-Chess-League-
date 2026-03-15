@@ -313,6 +313,18 @@ export default function GamePage() {
 
   const boardPosition = game.current_fen || DEFAULT_STARTING_FEN;
 
+  console.log('[Game Page] Turn ownership:', {
+    userId,
+    white_player_id: game.white_player_id,
+    black_player_id: game.black_player_id,
+    isWhite,
+    playerColor,
+    currentTurn: game.turn,
+    isMyTurn: game.turn === playerColor,
+    boardPosition,
+    gameStatus: game.status,
+  });
+
   return (
     <div className="min-h-screen p-6">
       <div className="max-w-7xl mx-auto">
@@ -340,6 +352,28 @@ export default function GamePage() {
             <p className="text-sm text-gray-400 mt-2">
               Reason: {game.end_reason}
             </p>
+          </div>
+        )}
+
+        {game.status === 'active' && (
+          <div className="card mb-6 text-center border-2 border-accl-red">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm text-gray-400">You are playing as</p>
+                <p className="text-xl font-bold capitalize">{playerColor}</p>
+              </div>
+              <div>
+                {game.turn === playerColor ? (
+                  <span className="bg-accl-red text-white px-4 py-2 rounded font-semibold">
+                    Your Turn
+                  </span>
+                ) : (
+                  <span className="text-gray-400">
+                    Waiting for {game.turn === 'white' ? 'White' : 'Black'}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

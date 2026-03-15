@@ -24,8 +24,22 @@ export default function ChessBoard({
 
   const canMove = !disabled && playerColor === currentTurn;
 
+  console.log('[ChessBoard] Move permissions:', {
+    position,
+    playerColor,
+    currentTurn,
+    disabled,
+    canMove,
+    reason: !canMove ? (disabled ? 'Board disabled' : playerColor !== currentTurn ? 'Not your turn' : 'Unknown') : 'Can move',
+  });
+
   function onSquareClick(square: string) {
-    if (!canMove) return;
+    if (!canMove) {
+      console.log('[ChessBoard] Click blocked on square:', square, 'canMove:', canMove);
+      return;
+    }
+
+    console.log('[ChessBoard] Square clicked:', square, 'moveFrom:', moveFrom);
 
     if (!moveFrom) {
       setMoveFrom(square);
@@ -33,6 +47,7 @@ export default function ChessBoard({
     }
 
     (async () => {
+      console.log('[ChessBoard] Attempting move from', moveFrom, 'to', square);
       const success = await onMoveMade(moveFrom, square);
 
       setMoveFrom(null);
@@ -54,12 +69,21 @@ export default function ChessBoard({
   }
 
   function onPieceDragBegin(piece: string, sourceSquare: string) {
-    if (!canMove) return false;
+    if (!canMove) {
+      console.log('[ChessBoard] Drag blocked, piece:', piece, 'square:', sourceSquare, 'canMove:', canMove);
+      return false;
+    }
+    console.log('[ChessBoard] Drag started, piece:', piece, 'square:', sourceSquare);
     setMoveFrom(sourceSquare);
   }
 
   function onPieceDrop(sourceSquare: string, targetSquare: string) {
-    if (!canMove) return false;
+    if (!canMove) {
+      console.log('[ChessBoard] Drop blocked from', sourceSquare, 'to', targetSquare, 'canMove:', canMove);
+      return false;
+    }
+
+    console.log('[ChessBoard] Piece dropped from', sourceSquare, 'to', targetSquare);
 
     (async () => {
       await onMoveMade(sourceSquare, targetSquare);

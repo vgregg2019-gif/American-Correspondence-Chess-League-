@@ -42,12 +42,16 @@ export default function DashboardPage() {
 
   async function loadDashboard() {
     try {
+      console.log('[Dashboard] Loading dashboard');
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
+        console.log('[Dashboard] No session, redirecting to login');
         router.replace('/login');
         return;
       }
+
+      console.log('[Dashboard] Logged in as user ID:', session.user.id);
 
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -55,7 +59,10 @@ export default function DashboardPage() {
         .eq('id', session.user.id)
         .single();
 
+      console.log('[Dashboard] Profile data:', profileData);
+
       if (profileError || !profileData) {
+        console.error('[Dashboard] Profile error:', profileError);
         await supabase.auth.signOut();
         router.replace('/login');
         return;
@@ -63,7 +70,9 @@ export default function DashboardPage() {
 
       setProfile(profileData);
 
-      const { data: gamesData } = await supabase
+      console.log('[Dashboard] Querying games for user:', session.user.id);
+
+      const { data: gamesData, error: gamesError } = await supabase
         .from('games')
         .select(`
           *,
@@ -73,16 +82,22 @@ export default function DashboardPage() {
         .or(`white_player_id.eq.${session.user.id},black_player_id.eq.${session.user.id}`)
         .order('created_at', { ascending: false });
 
+      console.log('[Dashboard] Games query result:', { gamesData, gamesError });
+
       if (gamesData) {
+        console.log('[Dashboard] Total games found:', gamesData.length);
         const active = gamesData.filter((g) => g.status === 'active');
         const completed = gamesData.filter((g) => g.status === 'finished');
+        console.log('[Dashboard] Active games:', active.length);
+        console.log('[Dashboard] Completed games:', completed.length);
+        console.log('[Dashboard] Active games detail:', active);
         setActiveGames(active);
         setCompletedGames(completed);
       }
 
       setLoading(false);
     } catch (err) {
-      console.error('Error loading dashboard:', err);
+      console.error('[Dashboard] Error loading dashboard:', err);
       setLoading(false);
     }
   }
@@ -90,27 +105,41 @@ export default function DashboardPage() {
   async function findOpponent() {
     if (!profile) return;
 
+    console.log('[Matchmaking] Starting matchmaking for player:', profile.id);
     setMatchmaking(true);
 
     try {
-      const { data: waitingPlayers } = await supabase
+      const { data: waitingPlayers, error: queueQueryError } = await supabase
         .from('matchmaking_queue')
         .select('*')
         .neq('player_id', profile.id)
         .order('created_at', { ascending: true })
         .limit(1);
 
+      console.log('[Matchmaking] Queue query result:', { waitingPlayers, queueQueryError });
+
       if (waitingPlayers && waitingPlayers.length > 0) {
         const opponent = waitingPlayers[0];
+        console.log('[Matchmaking] Found opponent:', opponent);
 
-        await supabase
+        const { error: deleteError } = await supabase
           .from('matchmaking_queue')
           .delete()
           .eq('id', opponent.id);
 
+        console.log('[Matchmaking] Delete opponent from queue:', { deleteError });
+
         const isWhite = Math.random() < 0.5;
         const whiteId = isWhite ? profile.id : opponent.player_id;
         const blackId = isWhite ? opponent.player_id : profile.id;
+
+        console.log('[Matchmaking] Creating game:', {
+          currentPlayer: profile.id,
+          opponentPlayer: opponent.player_id,
+          whiteId,
+          blackId,
+          currentPlayerIsWhite: isWhite,
+        });
 
         const { data: newGame, error: gameError } = await supabase
           .from('games')
@@ -122,18 +151,26 @@ export default function DashboardPage() {
           .select()
           .single();
 
+        console.log('[Matchmaking] Game creation result:', { newGame, gameError });
+
         if (!gameError && newGame) {
+          console.log('[Matchmaking] Navigating to game:', newGame.id);
           router.push(`/game/${newGame.id}`);
         } else {
+          console.error('[Matchmaking] Failed to create game');
           setMatchmaking(false);
         }
       } else {
+        console.log('[Matchmaking] No opponents found, joining queue');
+
         const { error: queueError } = await supabase
           .from('matchmaking_queue')
           .insert({
             player_id: profile.id,
             rating: profile.rating,
           });
+
+        console.log('[Matchmaking] Queue insert result:', { queueError });
 
         if (!queueError) {
           alert('You have been added to the matchmaking queue. You will be notified when an opponent is found.');
@@ -142,7 +179,7 @@ export default function DashboardPage() {
         setMatchmaking(false);
       }
     } catch (err) {
-      console.error('Matchmaking error:', err);
+      console.error('[Matchmaking] Error:', err);
       setMatchmaking(false);
     }
   }
@@ -219,9 +256,23 @@ export default function DashboardPage() {
             <div className="space-y-4">
               {activeGames.map((game) => {
                 const isWhite = game.white_player_id === profile?.id;
-                const opponent = isWhite ? game.black_player : game.white_player;
+                const whitePlayerData = Array.isArray(game.white_player) ? game.white_player[0] : game.white_player;
+                const blackPlayerData = Array.isArray(game.black_player) ? game.black_player[0] : game.black_player;
+                const opponent = isWhite ? blackPlayerData : whitePlayerData;
                 const myColor = isWhite ? 'white' : 'black';
                 const isMyTurn = game.turn === myColor;
+
+                console.log('[Dashboard] Game card:', {
+                  gameId: game.id,
+                  userId: profile?.id,
+                  white_player_id: game.white_player_id,
+                  black_player_id: game.black_player_id,
+                  isWhite,
+                  myColor,
+                  currentTurn: game.turn,
+                  isMyTurn,
+                  opponent,
+                });
 
                 const clock = calculateClock({
                   turn: game.turn,
@@ -229,6 +280,11 @@ export default function DashboardPage() {
                   black_time_remaining_seconds: game.black_time_remaining_seconds,
                   last_move_at: game.last_move_at,
                 });
+
+                if (!opponent) {
+                  console.error('[Dashboard] Missing opponent data for game:', game.id);
+                  return null;
+                }
 
                 return (
                   <Link key={game.id} href={`/game/${game.id}`}>
@@ -272,9 +328,16 @@ export default function DashboardPage() {
             <div className="space-y-4">
               {completedGames.map((game) => {
                 const isWhite = game.white_player_id === profile?.id;
-                const opponent = isWhite ? game.black_player : game.white_player;
+                const whitePlayerData = Array.isArray(game.white_player) ? game.white_player[0] : game.white_player;
+                const blackPlayerData = Array.isArray(game.black_player) ? game.black_player[0] : game.black_player;
+                const opponent = isWhite ? blackPlayerData : whitePlayerData;
                 const won = game.winner_id === profile?.id;
                 const draw = !game.winner_id;
+
+                if (!opponent) {
+                  console.error('[Dashboard] Missing opponent data for completed game:', game.id);
+                  return null;
+                }
 
                 return (
                   <Link key={game.id} href={`/game/${game.id}`}>
