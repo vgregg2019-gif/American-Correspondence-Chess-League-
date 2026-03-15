@@ -24,13 +24,19 @@ export default function ChessBoard({
 
   const canMove = !disabled && playerColor === currentTurn;
 
+  const disabledReason = disabled
+    ? 'Board disabled (game not active or move in progress)'
+    : playerColor !== currentTurn
+    ? `Not your turn (you: ${playerColor}, current: ${currentTurn})`
+    : null;
+
   console.log('[ChessBoard] Move permissions:', {
     position,
     playerColor,
     currentTurn,
     disabled,
     canMove,
-    reason: !canMove ? (disabled ? 'Board disabled' : playerColor !== currentTurn ? 'Not your turn' : 'Unknown') : 'Can move',
+    disabledReason: disabledReason || 'Can move - pieces draggable',
   });
 
   function onSquareClick(square: string) {

@@ -313,16 +313,22 @@ export default function GamePage() {
 
   const boardPosition = game.current_fen || DEFAULT_STARTING_FEN;
 
-  console.log('[Game Page] Turn ownership:', {
+  const fenTurn = boardPosition.split(' ')[1];
+  const currentTurn = fenTurn === 'w' ? 'white' : 'black';
+  const isMyTurn = currentTurn === playerColor;
+
+  console.log('[Game Page] Turn detection:', {
     userId,
     white_player_id: game.white_player_id,
     black_player_id: game.black_player_id,
     isWhite,
     playerColor,
-    currentTurn: game.turn,
-    isMyTurn: game.turn === playerColor,
     boardPosition,
+    fenTurn,
+    currentTurn,
+    isMyTurn,
     gameStatus: game.status,
+    gameTurnColumn: game.turn,
   });
 
   return (
@@ -363,13 +369,13 @@ export default function GamePage() {
                 <p className="text-xl font-bold capitalize">{playerColor}</p>
               </div>
               <div>
-                {game.turn === playerColor ? (
+                {isMyTurn ? (
                   <span className="bg-accl-red text-white px-4 py-2 rounded font-semibold">
                     Your Turn
                   </span>
                 ) : (
                   <span className="text-gray-400">
-                    Waiting for {game.turn === 'white' ? 'White' : 'Black'}
+                    Waiting for {currentTurn === 'white' ? 'White' : 'Black'}
                   </span>
                 )}
               </div>
@@ -383,7 +389,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <GameTimer
                   initialSeconds={isWhite ? blackTime : whiteTime}
-                  isActive={game.status === 'active' && game.turn !== playerColor}
+                  isActive={game.status === 'active' && !isMyTurn}
                   playerName={opponent.username || 'Opponent'}
                   color={isWhite ? 'black' : 'white'}
                 />
@@ -395,7 +401,7 @@ export default function GamePage() {
                 position={boardPosition}
                 onMoveMade={handleMove}
                 playerColor={playerColor}
-                currentTurn={game.turn}
+                currentTurn={currentTurn}
                 disabled={game.status !== 'active' || movingPiece}
               />
             </div>
@@ -404,7 +410,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <GameTimer
                   initialSeconds={isWhite ? whiteTime : blackTime}
-                  isActive={game.status === 'active' && game.turn === playerColor}
+                  isActive={game.status === 'active' && isMyTurn}
                   playerName={currentPlayer.username || 'You'}
                   color={playerColor}
                 />
@@ -427,7 +433,7 @@ export default function GamePage() {
                 <div className="flex justify-between">
                   <span className="text-gray-400">Turn:</span>
                   <span className="font-semibold capitalize">
-                    {game.turn === playerColor ? 'Your Turn' : "Opponent's Turn"}
+                    {isMyTurn ? 'Your Turn' : "Opponent's Turn"}
                   </span>
                 </div>
               </div>
