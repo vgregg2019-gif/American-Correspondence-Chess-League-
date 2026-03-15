@@ -67,8 +67,8 @@ export default function DashboardPage() {
         .from('games')
         .select(`
           *,
-          white_player:profiles!games_white_player_id_fkey(*),
-          black_player:profiles!games_black_player_id_fkey(*)
+          white_player:white_player_id(id, username, rating),
+          black_player:black_player_id(id, username, rating)
         `)
         .or(`white_player_id.eq.${session.user.id},black_player_id.eq.${session.user.id}`)
         .order('created_at', { ascending: false });

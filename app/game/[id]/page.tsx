@@ -67,11 +67,11 @@ export default function GamePage() {
         .from('games')
         .select(`
           *,
-          white_player:profiles!games_white_player_id_fkey(*),
-          black_player:profiles!games_black_player_id_fkey(*)
+          white_player:white_player_id(id, username, rating),
+          black_player:black_player_id(id, username, rating)
         `)
         .eq('id', gameId)
-        .single();
+        .maybeSingle();
 
       if (gameError || !gameData) {
         router.replace('/dashboard');
