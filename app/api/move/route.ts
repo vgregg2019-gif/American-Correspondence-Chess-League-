@@ -43,17 +43,44 @@ export async function POST(req: NextRequest) {
     const isBlack = game.black_player_id === playerId;
 
     if (!isWhite && !isBlack) {
-      return NextResponse.json({ error: "Not your game" }, { status: 403 });
+      console.log('[Move API] 403: User not a player in this game', {
+        playerId,
+        white_player_id: game.white_player_id,
+        black_player_id: game.black_player_id,
+      });
+      return NextResponse.json({ error: "User is not a player in this game" }, { status: 403 });
     }
 
     const playerColor = isWhite ? "white" : "black";
 
-    if (game.turn !== playerColor) {
-      return NextResponse.json({ error: "Not your turn" }, { status: 403 });
+    const fenTurn = game.current_fen.split(' ')[1];
+    const currentTurn = fenTurn === 'w' ? 'white' : 'black';
+
+    console.log('[Move API] Turn validation:', {
+      playerId,
+      white_player_id: game.white_player_id,
+      black_player_id: game.black_player_id,
+      playerColor,
+      current_fen: game.current_fen,
+      fenTurn,
+      currentTurn,
+      gameTurnColumn: game.turn,
+      isPlayersTurn: currentTurn === playerColor,
+    });
+
+    if (currentTurn !== playerColor) {
+      console.log('[Move API] 403: Not your turn', {
+        playerColor,
+        currentTurn,
+        reason: `Current turn is ${currentTurn}, but you are ${playerColor}`,
+      });
+      return NextResponse.json({
+        error: `Not your turn. Current turn: ${currentTurn}, you are: ${playerColor}`
+      }, { status: 403 });
     }
 
     const clock = calculateClock({
-      turn: game.turn,
+      turn: currentTurn,
       white_time_remaining_seconds: game.white_time_remaining_seconds,
       black_time_remaining_seconds: game.black_time_remaining_seconds,
       last_move_at: game.last_move_at,
