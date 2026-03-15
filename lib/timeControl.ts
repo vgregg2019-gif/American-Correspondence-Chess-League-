@@ -14,12 +14,35 @@ export type CalculatedClock = {
 };
 
 export function calculateClock(state: GameClockState, now = new Date()): CalculatedClock {
+  if (!state || !state.last_move_at ||
+      typeof state.white_time_remaining_seconds !== 'number' ||
+      typeof state.black_time_remaining_seconds !== 'number') {
+    return {
+      whiteRemaining: 0,
+      blackRemaining: 0,
+      activeColor: state?.turn || "white",
+      timedOut: false,
+      timedOutColor: undefined,
+    };
+  }
+
   const lastMoveMs = new Date(state.last_move_at).getTime();
   const nowMs = now.getTime();
+
+  if (isNaN(lastMoveMs) || isNaN(nowMs)) {
+    return {
+      whiteRemaining: state.white_time_remaining_seconds || 0,
+      blackRemaining: state.black_time_remaining_seconds || 0,
+      activeColor: state.turn,
+      timedOut: false,
+      timedOutColor: undefined,
+    };
+  }
+
   const elapsedSeconds = Math.max(0, Math.floor((nowMs - lastMoveMs) / 1000));
 
-  let whiteRemaining = state.white_time_remaining_seconds;
-  let blackRemaining = state.black_time_remaining_seconds;
+  let whiteRemaining = state.white_time_remaining_seconds || 0;
+  let blackRemaining = state.black_time_remaining_seconds || 0;
 
   if (state.turn === "white") {
     whiteRemaining = Math.max(0, whiteRemaining - elapsedSeconds);
@@ -51,7 +74,7 @@ export function getNextTimeoutAt(
 }
 
 export function formatTime(seconds: number): string {
-  if (seconds <= 0) return "0:00:00";
+  if (!seconds || isNaN(seconds) || seconds <= 0) return "0:00:00";
 
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);

@@ -18,24 +18,25 @@ export default function GameTimer({
   color,
   timedOut = false,
 }: GameTimerProps) {
-  const [seconds, setSeconds] = useState(initialSeconds);
+  const [seconds, setSeconds] = useState(initialSeconds || 0);
 
   useEffect(() => {
-    setSeconds(initialSeconds);
+    setSeconds(initialSeconds || 0);
   }, [initialSeconds]);
 
   useEffect(() => {
     if (!isActive || timedOut) return;
 
     const interval = setInterval(() => {
-      setSeconds((prev) => Math.max(0, prev - 1));
+      setSeconds((prev) => Math.max(0, (prev || 0) - 1));
     }, 1000);
 
     return () => clearInterval(interval);
   }, [isActive, timedOut]);
 
-  const isLowTime = seconds < 3600;
-  const isCriticalTime = seconds < 600;
+  const safeSeconds = seconds || 0;
+  const isLowTime = safeSeconds < 3600;
+  const isCriticalTime = safeSeconds < 600;
 
   return (
     <div
@@ -64,7 +65,7 @@ export default function GameTimer({
             : 'text-gray-200'
         }`}
       >
-        {timedOut ? 'Time Out' : formatTime(seconds)}
+        {timedOut ? 'Time Out' : formatTime(safeSeconds)}
       </div>
     </div>
   );

@@ -107,6 +107,13 @@ export default function GamePage() {
 
       setGame(gameData);
 
+      console.log('Game time data:', {
+        turn: gameData.turn,
+        white_time: gameData.white_time_remaining_seconds,
+        black_time: gameData.black_time_remaining_seconds,
+        last_move_at: gameData.last_move_at,
+      });
+
       const clock = calculateClock({
         turn: gameData.turn,
         white_time_remaining_seconds: gameData.white_time_remaining_seconds,
@@ -114,8 +121,10 @@ export default function GamePage() {
         last_move_at: gameData.last_move_at,
       });
 
-      setWhiteTime(clock.whiteRemaining);
-      setBlackTime(clock.blackRemaining);
+      console.log('Calculated clock:', clock);
+
+      setWhiteTime(clock.whiteRemaining || 0);
+      setBlackTime(clock.blackRemaining || 0);
 
       const { data: movesData, error: movesError } = await supabase
         .from('moves')
@@ -198,31 +207,44 @@ export default function GamePage() {
   }, [gameId, game]);
 
   async function handleMove(from: string, to: string, promotion?: string): Promise<boolean> {
-    if (!game || !userId || movingPiece) return false;
+    if (!game || !userId || movingPiece) {
+      console.log('Move blocked:', { hasGame: !!game, hasUserId: !!userId, movingPiece });
+      return false;
+    }
+
+    console.log('Attempting move:', { from, to, promotion, gameId: game.id });
 
     setMovingPiece(true);
 
     try {
+      const movePayload = {
+        gameId: game.id,
+        playerId: userId,
+        from,
+        to,
+        promotion,
+      };
+
+      console.log('Sending move request:', movePayload);
+
       const response = await fetch('/api/move', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          gameId: game.id,
-          playerId: userId,
-          from,
-          to,
-          promotion,
-        }),
+        body: JSON.stringify(movePayload),
       });
 
       const result = await response.json();
 
+      console.log('Move response:', { status: response.status, result });
+
       if (!response.ok) {
+        console.error('Move failed:', result.error);
         alert(result.error || 'Invalid move');
         setMovingPiece(false);
         return false;
       }
 
+      console.log('Move successful:', result);
       setMovingPiece(false);
       return true;
     } catch (err) {

@@ -13,6 +13,15 @@ interface MoveListProps {
 }
 
 export default function MoveList({ moves, whitePlayerId }: MoveListProps) {
+  if (!moves || !Array.isArray(moves)) {
+    return (
+      <div className="card">
+        <h3 className="text-lg font-semibold mb-4">Move History</h3>
+        <p className="text-gray-500 text-sm">No moves yet</p>
+      </div>
+    );
+  }
+
   const sortedMoves = [...moves].sort((a, b) => a.move_number - b.move_number);
 
   const groupedMoves: Array<{ white?: string; black?: string; number: number }> = [];
