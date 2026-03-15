@@ -3,12 +3,19 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
+console.log('[Supabase Client] Initialization:', {
+  hasUrl: !!supabaseUrl,
+  hasKey: !!supabaseAnonKey,
+  urlValue: supabaseUrl || 'NOT SET',
+  urlHost: supabaseUrl ? new URL(supabaseUrl).host : 'N/A',
+  keyLength: supabaseAnonKey?.length || 0,
+  keyPrefix: supabaseAnonKey ? supabaseAnonKey.substring(0, 20) + '...' : 'NOT SET',
+});
+
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('[Supabase Client] Missing environment variables:', {
-    hasUrl: !!supabaseUrl,
-    hasKey: !!supabaseAnonKey,
-    urlValue: supabaseUrl ? 'present' : 'missing',
-    keyValue: supabaseAnonKey ? 'present' : 'missing',
+  console.error('[Supabase Client] CRITICAL: Missing environment variables!', {
+    NEXT_PUBLIC_SUPABASE_URL: supabaseUrl ? 'present' : 'MISSING',
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey ? 'present' : 'MISSING',
   });
 }
 

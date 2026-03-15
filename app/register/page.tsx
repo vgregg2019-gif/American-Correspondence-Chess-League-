@@ -18,6 +18,13 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
 
+    console.log('[Register] Environment check:', {
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'loaded' : 'MISSING',
+      urlValue: process.env.NEXT_PUBLIC_SUPABASE_URL || 'not set',
+      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'loaded' : 'MISSING',
+      keyLength: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length || 0,
+    });
+
     if (username.length < 3) {
       setError('Username must be at least 3 characters');
       setLoading(false);
@@ -31,6 +38,7 @@ export default function RegisterPage() {
     }
 
     try {
+      console.log('[Register] Checking for existing username:', username);
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('username')
@@ -43,18 +51,30 @@ export default function RegisterPage() {
         return;
       }
 
+      console.log('[Register] Attempting sign-up for email:', email);
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       });
 
+      console.log('[Register] Sign-up response:', {
+        hasData: !!data,
+        hasUser: !!data?.user,
+        userId: data?.user?.id,
+        hasSession: !!data?.session,
+        hasError: !!signUpError,
+        errorMessage: signUpError?.message,
+      });
+
       if (signUpError) {
+        console.error('[Register] Sign-up error:', signUpError);
         setError(signUpError.message);
         setLoading(false);
         return;
       }
 
       if (data.user) {
+        console.log('[Register] Creating profile for user:', data.user.id);
         const { error: profileError } = await supabase
           .from('profiles')
           .insert({
@@ -64,15 +84,23 @@ export default function RegisterPage() {
           });
 
         if (profileError) {
+          console.error('[Register] Profile creation error:', profileError);
           setError('Failed to create profile');
           setLoading(false);
           return;
         }
 
+        console.log('[Register] Registration successful, redirecting to dashboard');
         router.push('/dashboard');
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      console.error('[Register] Network/exception failure:', {
+        error: err,
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined,
+        type: typeof err,
+      });
+      setError(`Network error: ${err instanceof Error ? err.message : 'An unexpected error occurred'}`);
       setLoading(false);
     }
   };

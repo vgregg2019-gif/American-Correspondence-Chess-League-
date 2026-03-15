@@ -17,23 +17,61 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
+    console.log('[Auth] Environment check:', {
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'loaded' : 'MISSING',
+      urlValue: process.env.NEXT_PUBLIC_SUPABASE_URL || 'not set',
+      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'loaded' : 'MISSING',
+      keyLength: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length || 0,
+    });
+
+    console.log('[Auth] Attempting sign-in for email:', email);
+
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
+      console.log('[Auth] Sign-in response:', {
+        hasData: !!data,
+        hasUser: !!data?.user,
+        userId: data?.user?.id,
+        hasSession: !!data?.session,
+        hasError: !!signInError,
+        errorMessage: signInError?.message,
+        errorName: signInError?.name,
+        errorStatus: signInError?.status,
+      });
+
       if (signInError) {
+        console.error('[Auth] Sign-in error details:', {
+          message: signInError.message,
+          name: signInError.name,
+          status: signInError.status,
+          fullError: signInError,
+        });
         setError(signInError.message);
         setLoading(false);
         return;
       }
 
       if (data.user) {
+        console.log('[Auth] Sign-in successful, redirecting to dashboard');
         router.push('/dashboard');
+      } else {
+        console.warn('[Auth] No user in response despite no error');
+        setError('Authentication succeeded but no user data returned');
+        setLoading(false);
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      console.error('[Auth] Network/exception failure:', {
+        error: err,
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined,
+        type: typeof err,
+        stringified: JSON.stringify(err, null, 2),
+      });
+      setError(`Network error: ${err instanceof Error ? err.message : 'Failed to fetch'}`);
       setLoading(false);
     }
   };
