@@ -35,6 +35,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Game not found" }, { status: 404 });
     }
 
+    console.log('[Move API] Time values from database:', {
+      white_time_remaining_seconds: game.white_time_remaining_seconds,
+      black_time_remaining_seconds: game.black_time_remaining_seconds,
+      last_move_at: game.last_move_at,
+      time_control: game.time_control,
+      timeout_at: game.timeout_at,
+      typeOf_white_time: typeof game.white_time_remaining_seconds,
+      typeOf_black_time: typeof game.black_time_remaining_seconds,
+    });
+
     if (game.status !== "active") {
       return NextResponse.json({ error: "Game is not active" }, { status: 400 });
     }
@@ -91,13 +101,18 @@ export async function POST(req: NextRequest) {
 
     if (!game.last_move_at) {
       console.log('[Move API] First move - using initial time values');
+      const whiteTime = game.white_time_remaining_seconds ?? 172800;
+      const blackTime = game.black_time_remaining_seconds ?? 172800;
+
       clock = {
-        whiteRemaining: game.white_time_remaining_seconds,
-        blackRemaining: game.black_time_remaining_seconds,
+        whiteRemaining: whiteTime,
+        blackRemaining: blackTime,
         activeColor: currentTurn,
         timedOut: false,
         timedOutColor: undefined,
       };
+
+      console.log('[Move API] First move clock:', clock);
     } else {
       clock = calculateClock({
         turn: currentTurn,
@@ -143,10 +158,18 @@ export async function POST(req: NextRequest) {
     const nextTurn = playerColor === "white" ? "black" : "white";
 
     const newWhiteTime =
-      playerColor === "white" ? clock.whiteRemaining : game.white_time_remaining_seconds;
+      playerColor === "white" ? clock.whiteRemaining : (game.white_time_remaining_seconds ?? 172800);
 
     const newBlackTime =
-      playerColor === "black" ? clock.blackRemaining : game.black_time_remaining_seconds;
+      playerColor === "black" ? clock.blackRemaining : (game.black_time_remaining_seconds ?? 172800);
+
+    console.log('[Move API] Time values for update:', {
+      playerColor,
+      clockWhite: clock.whiteRemaining,
+      clockBlack: clock.blackRemaining,
+      newWhiteTime,
+      newBlackTime,
+    });
 
     let status: 'active' | 'finished' = "active";
     let winnerId: string | null = null;
