@@ -21,13 +21,10 @@ interface Game {
   black_player_id: string;
   current_fen: string | null;
   status: 'active' | 'finished';
-  turn: 'white' | 'black';
-  white_time_remaining_seconds: number;
-  black_time_remaining_seconds: number;
-  last_move_at: string;
+  result: string | null;
+  time_control: string | null;
   timeout_at: string | null;
-  winner_id: string | null;
-  end_reason: string | null;
+  created_at: string;
   white_player: Profile | Profile[];
   black_player: Profile | Profile[];
 }
@@ -89,9 +86,8 @@ export default function GamePage() {
       }
 
       if (!gameData) {
-        console.log('Game not found');
-        setError('Game not found');
-        setLoading(false);
+        console.log('Game not found, redirecting to dashboard');
+        router.replace('/dashboard');
         return;
       }
 
@@ -107,35 +103,9 @@ export default function GamePage() {
 
       setGame(gameData);
 
-      console.log('[Timer] ===== GAME TIME DATA =====');
-      console.log('[Timer] Turn:', gameData.turn);
-      console.log('[Timer] White time (seconds):', gameData.white_time_remaining_seconds);
-      console.log('[Timer] Black time (seconds):', gameData.black_time_remaining_seconds);
-      console.log('[Timer] Last move at:', gameData.last_move_at);
-      console.log('[Timer] Type of white_time:', typeof gameData.white_time_remaining_seconds);
-      console.log('[Timer] Type of black_time:', typeof gameData.black_time_remaining_seconds);
-
-      if (!gameData.last_move_at) {
-        console.log('[Timer] No last_move_at - using initial time values directly');
-        const whiteInitial = gameData.white_time_remaining_seconds ?? 172800;
-        const blackInitial = gameData.black_time_remaining_seconds ?? 172800;
-        setWhiteTime(whiteInitial);
-        setBlackTime(blackInitial);
-        console.log('[Timer] Set times:', { white: whiteInitial, black: blackInitial });
-      } else {
-        console.log('[Timer] Calculating clock from last move...');
-        const clock = calculateClock({
-          turn: gameData.turn,
-          white_time_remaining_seconds: gameData.white_time_remaining_seconds,
-          black_time_remaining_seconds: gameData.black_time_remaining_seconds,
-          last_move_at: gameData.last_move_at,
-        });
-
-        console.log('[Timer] Calculated clock:', clock);
-
-        setWhiteTime(clock.whiteRemaining);
-        setBlackTime(clock.blackRemaining);
-      }
+      console.log('[Timer] Initial time set to 48 hours (172800 seconds)');
+      setWhiteTime(172800);
+      setBlackTime(172800);
 
       const { data: movesData, error: movesError } = await supabase
         .from('moves')
@@ -290,13 +260,16 @@ export default function GamePage() {
     console.log('[Resign] White player:', game.white_player_id);
     console.log('[Resign] Black player:', game.black_player_id);
 
+    const isWhite = game.white_player_id === userId;
+    const resultString = isWhite ? '0-1' : '1-0';
+
     const updatePayload = {
       status: 'finished' as const,
+      result: resultString,
     };
 
     console.log('[Resign] Update payload:', updatePayload);
     console.log('[Resign] Filter: .eq("id", "' + game.id + '")');
-    console.log('[Resign] Note: Only updating status until schema cache refreshes');
 
     const result = await supabase
       .from('games')
@@ -370,7 +343,6 @@ export default function GamePage() {
     currentTurn,
     isMyTurn,
     gameStatus: game.status,
-    gameTurnColumn: game.turn,
   });
 
   return (
@@ -389,16 +361,24 @@ export default function GamePage() {
           <div className="card mb-6 text-center border-2 border-accl-red">
             <h2 className="text-2xl font-bold mb-2">Game Over</h2>
             <p className="text-lg">
-              {game.winner_id === userId ? (
-                <span className="text-green-400">You Won!</span>
-              ) : game.winner_id ? (
-                <span className="text-red-400">You Lost</span>
+              {game.result === '1-0' ? (
+                isWhite ? (
+                  <span className="text-green-400">You Won!</span>
+                ) : (
+                  <span className="text-red-400">You Lost</span>
+                )
+              ) : game.result === '0-1' ? (
+                isWhite ? (
+                  <span className="text-red-400">You Lost</span>
+                ) : (
+                  <span className="text-green-400">You Won!</span>
+                )
               ) : (
                 <span className="text-gray-400">Draw</span>
               )}
             </p>
             <p className="text-sm text-gray-400 mt-2">
-              Reason: {game.end_reason}
+              Result: {game.result || 'N/A'}
             </p>
           </div>
         )}
