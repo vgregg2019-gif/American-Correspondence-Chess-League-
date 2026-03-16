@@ -25,9 +25,31 @@ export async function POST(req: NextRequest) {
     const token = authHeader.replace('Bearer ', '');
     console.log('[Move API] Token extracted (first 20 chars):', token.substring(0, 20) + '...');
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    console.log('[Move API] Environment check:', {
+      hasUrl: !!supabaseUrl,
+      hasKey: !!supabaseKey,
+      urlValue: supabaseUrl,
+      keyPrefix: supabaseKey?.substring(0, 20)
+    });
+
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json({
+        step: "config",
+        error: "Supabase configuration missing",
+        message: "Server environment variables not configured",
+        details: {
+          hasUrl: !!supabaseUrl,
+          hasKey: !!supabaseKey
+        }
+      }, { status: 500 });
+    }
+
     const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      supabaseUrl,
+      supabaseKey,
       {
         global: {
           headers: {
@@ -87,7 +109,6 @@ export async function POST(req: NextRequest) {
     console.log('[Move API] ===== GAME FETCH =====');
     console.log('[Move API] Game ID to fetch:', gameId);
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseHost = new URL(supabaseUrl).hostname;
     console.log('[Move API] Supabase project host:', supabaseHost);
     console.log('[Move API] Using service role key:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -98,7 +119,7 @@ export async function POST(req: NextRequest) {
 
     if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
       const adminClient = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        supabaseUrl,
         process.env.SUPABASE_SERVICE_ROLE_KEY
       );
 
