@@ -150,16 +150,11 @@ export async function POST(req: NextRequest) {
         white_player_id,
         black_player_id,
         current_fen,
-        turn,
         status,
-        winner_id,
+        result,
         time_control,
-        white_time_remaining_seconds,
-        black_time_remaining_seconds,
-        last_move_at,
         timeout_at,
-        created_at,
-        updated_at
+        created_at
       `;
 
     console.log('[Move API] Query: SELECT', selectQuery.trim(), 'FROM games WHERE id =', gameId);
@@ -200,7 +195,7 @@ export async function POST(req: NextRequest) {
         white_player_id: game.white_player_id,
         black_player_id: game.black_player_id,
         status: game.status,
-        turn: game.turn,
+        current_fen: game.current_fen,
       });
       console.log('[Move API] ✓ Game fetched successfully');
     } else {
@@ -241,13 +236,8 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('[Move API] Time values from database:', {
-      white_time_remaining_seconds: game.white_time_remaining_seconds,
-      black_time_remaining_seconds: game.black_time_remaining_seconds,
-      last_move_at: game.last_move_at,
       time_control: game.time_control,
       timeout_at: game.timeout_at,
-      typeOf_white_time: typeof game.white_time_remaining_seconds,
-      typeOf_black_time: typeof game.black_time_remaining_seconds,
     });
 
     if (game.status !== "active") {
@@ -293,7 +283,6 @@ export async function POST(req: NextRequest) {
       current_fen: game.current_fen,
       fenTurn,
       currentTurn,
-      gameTurnColumn: game.turn,
       isPlayersTurn: currentTurn === playerColor,
     });
 
@@ -313,80 +302,28 @@ export async function POST(req: NextRequest) {
 
     const nowIso = new Date().toISOString();
 
-    let clock: {
-      whiteRemaining: number;
-      blackRemaining: number;
-      activeColor: "white" | "black";
-      timedOut: boolean;
-      timedOutColor?: "white" | "black";
-    };
+    if (game.timeout_at && new Date(game.timeout_at) < new Date()) {
+      console.log('[Move API] Game timed out');
+      const timedOutColor = currentTurn;
+      const resultString = timedOutColor === 'white' ? '0-1' : '1-0';
 
-    if (!game.last_move_at) {
-      console.log('[Move API] First move - using initial time values');
-      const whiteTime = game.white_time_remaining_seconds ?? 172800;
-      const blackTime = game.black_time_remaining_seconds ?? 172800;
+      await supabase
+        .from("games")
+        .update({
+          status: "finished",
+          result: resultString,
+        })
+        .eq("id", gameId);
 
-      clock = {
-        whiteRemaining: whiteTime,
-        blackRemaining: blackTime,
-        activeColor: currentTurn,
-        timedOut: false,
-        timedOutColor: undefined,
-      };
-
-      console.log('[Move API] First move clock:', clock);
-    } else {
-      console.log('[Move API] Calculating clock for non-first move');
-      try {
-        clock = calculateClock({
-          turn: currentTurn,
-          white_time_remaining_seconds: game.white_time_remaining_seconds ?? 172800,
-          black_time_remaining_seconds: game.black_time_remaining_seconds ?? 172800,
-          last_move_at: game.last_move_at,
-        });
-        console.log('[Move API] Clock calculated:', clock);
-      } catch (error) {
-        console.error('[Move API] Clock calculation error:', error);
-        return NextResponse.json({
-          step: "clock_calculation",
-          error: "Clock calculation failed",
-          message: error instanceof Error ? error.message : 'Unknown error',
-          details: {
-            turn: currentTurn,
-            whiteTime: game.white_time_remaining_seconds,
-            blackTime: game.black_time_remaining_seconds,
-            lastMoveAt: game.last_move_at
-          },
-          stack: error instanceof Error ? error.stack : undefined
-        }, { status: 500 });
-      }
-
-      if (clock.timedOut) {
-        const winnerId =
-          clock.timedOutColor === "white" ? game.black_player_id : game.white_player_id;
-
-        await supabase
-          .from("games")
-          .update({
-            status: "finished",
-            winner_id: winnerId,
-            white_time_remaining_seconds: clock.whiteRemaining,
-            black_time_remaining_seconds: clock.blackRemaining,
-            updated_at: nowIso,
-          })
-          .eq("id", gameId);
-
-        return NextResponse.json({
-          step: "timeout_check",
-          error: "Game already ended on time",
-          message: `${clock.timedOutColor} ran out of time`,
-          details: {
-            timedOutColor: clock.timedOutColor,
-            whiteRemaining: clock.whiteRemaining,
-            blackRemaining: clock.blackRemaining
-          }
-        }, { status: 400 });
-      }
+      return NextResponse.json({
+        step: "timeout_check",
+        error: "Game already ended on time",
+        message: `${timedOutColor} ran out of time`,
+        details: {
+          timedOutColor,
+          timeout_at: game.timeout_at
+        }
+      }, { status: 400 });
     }
 
     console.log('[Move API] Applying move to position:', game.current_fen);
@@ -410,59 +347,13 @@ export async function POST(req: NextRequest) {
 
     const nextTurn = playerColor === "white" ? "black" : "white";
 
-    const newWhiteTime =
-      playerColor === "white" ? clock.whiteRemaining : (game.white_time_remaining_seconds ?? 172800);
-
-    const newBlackTime =
-      playerColor === "black" ? clock.blackRemaining : (game.black_time_remaining_seconds ?? 172800);
-
-    console.log('[Move API] Time values for update:', {
-      playerColor,
-      clockWhite: clock.whiteRemaining,
-      clockBlack: clock.blackRemaining,
-      newWhiteTime,
-      newBlackTime,
-    });
-
     let status: 'active' | 'finished' = "active";
-    let winnerId: string | null = null;
-    let timeoutAt: string | null = null;
-
-    console.log('[Move API] About to calculate timeout with:', {
-      nextTurn,
-      newWhiteTime,
-      newBlackTime,
-      typeOf_newWhiteTime: typeof newWhiteTime,
-      typeOf_newBlackTime: typeof newBlackTime,
-      isNaN_newWhiteTime: isNaN(newWhiteTime),
-      isNaN_newBlackTime: isNaN(newBlackTime),
-    });
-
-    try {
-      if (typeof newWhiteTime !== 'number' || typeof newBlackTime !== 'number' ||
-          isNaN(newWhiteTime) || isNaN(newBlackTime)) {
-        throw new Error(`Invalid time values: white=${newWhiteTime}, black=${newBlackTime}`);
-      }
-
-      timeoutAt = getNextTimeoutAt(nextTurn, newWhiteTime, newBlackTime, new Date());
-      console.log('[Move API] Next timeout calculated:', {
-        nextTurn,
-        newWhiteTime,
-        newBlackTime,
-        timeoutAt,
-      });
-    } catch (error) {
-      console.error('[Move API] Error calculating timeout:', error);
-      console.error('[Move API] Timeout error details:', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      timeoutAt = new Date(Date.now() + 172800 * 1000).toISOString();
-    }
+    let resultString: string | null = null;
+    let timeoutAt: string | null = new Date(Date.now() + 172800 * 1000).toISOString();
 
     if (moveResult.isCheckmate) {
       status = "finished";
-      winnerId = playerId;
+      resultString = playerColor === 'white' ? '1-0' : '0-1';
       timeoutAt = null;
     } else if (
       moveResult.isDraw ||
@@ -471,7 +362,7 @@ export async function POST(req: NextRequest) {
       moveResult.isThreefoldRepetition
     ) {
       status = "finished";
-      winnerId = null;
+      resultString = '1/2-1/2';
       timeoutAt = null;
     }
 
@@ -520,17 +411,15 @@ export async function POST(req: NextRequest) {
 
     console.log('[Move API] Move inserted successfully');
 
-    const gameUpdate = {
+    const gameUpdate: any = {
       current_fen: moveResult.fen,
-      turn: status === "active" ? nextTurn : game.turn,
       status,
-      winner_id: winnerId,
-      white_time_remaining_seconds: newWhiteTime,
-      black_time_remaining_seconds: newBlackTime,
-      last_move_at: nowIso,
       timeout_at: status === "active" ? timeoutAt : null,
-      updated_at: nowIso,
     };
+
+    if (resultString) {
+      gameUpdate.result = resultString;
+    }
 
     console.log('[Move API] Updating game:', gameUpdate);
 
@@ -565,7 +454,7 @@ export async function POST(req: NextRequest) {
       fen: moveResult.fen,
       move: moveResult.san,
       status,
-      winnerId,
+      result: resultString,
     };
 
     console.log('[Move API] Success response:', response);
