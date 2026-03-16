@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
-import { calculateClock } from '@/lib/timeControl';
 import ChessBoard from '@/components/ChessBoard';
 import GameTimer from '@/components/GameTimer';
 import MoveList from '@/components/MoveList';
@@ -155,16 +154,6 @@ export default function GamePage() {
               ...updatedGame,
             };
           });
-
-          const clock = calculateClock({
-            turn: updatedGame.turn,
-            white_time_remaining_seconds: updatedGame.white_time_remaining_seconds,
-            black_time_remaining_seconds: updatedGame.black_time_remaining_seconds,
-            last_move_at: updatedGame.last_move_at,
-          });
-
-          setWhiteTime(clock.whiteRemaining);
-          setBlackTime(clock.blackRemaining);
         }
       )
       .on(
@@ -190,6 +179,19 @@ export default function GamePage() {
   async function handleMove(from: string, to: string, promotion?: string): Promise<boolean> {
     if (!game || !userId || movingPiece) {
       console.log('Move blocked:', { hasGame: !!game, hasUserId: !!userId, movingPiece });
+      return false;
+    }
+
+    const { data: gameCheck } = await supabase
+      .from('games')
+      .select('id')
+      .eq('id', game.id)
+      .maybeSingle();
+
+    if (!gameCheck) {
+      console.error('Game no longer exists, redirecting to dashboard');
+      alert('This game no longer exists. Redirecting to dashboard...');
+      router.replace('/dashboard');
       return false;
     }
 
@@ -250,6 +252,19 @@ export default function GamePage() {
 
   async function handleResign() {
     if (!game || !userId) return;
+
+    const { data: gameCheck } = await supabase
+      .from('games')
+      .select('id')
+      .eq('id', game.id)
+      .maybeSingle();
+
+    if (!gameCheck) {
+      console.error('Game no longer exists, redirecting to dashboard');
+      alert('This game no longer exists. Redirecting to dashboard...');
+      router.replace('/dashboard');
+      return;
+    }
 
     const confirmed = confirm('Are you sure you want to resign?');
     if (!confirmed) return;
