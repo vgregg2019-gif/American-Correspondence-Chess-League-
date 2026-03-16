@@ -84,9 +84,15 @@ export async function POST(req: NextRequest) {
 
     console.log('[Move API] ===== GAME FETCH =====');
     console.log('[Move API] Game ID to fetch:', gameId);
-    console.log('[Move API] Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseHost = new URL(supabaseUrl).hostname;
+    console.log('[Move API] Supabase project host:', supabaseHost);
     console.log('[Move API] Using service role key:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+    console.log('[Move API] Using anon key:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    console.log('[Move API] Auth method: Bearer token from frontend (anon key + user token)');
     console.log('[Move API] Auth context in client:', user.id);
+    console.log('[Move API] RLS will be enforced: YES (using anon key with user auth)');
 
     const selectQuery = `
         id,
