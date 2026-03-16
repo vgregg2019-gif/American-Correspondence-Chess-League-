@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { applyMove } from "@/lib/chessEngine";
 import { calculateClock, getNextTimeoutAt } from "@/lib/timeControl";
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     console.log('[Move API] Processing move request');
