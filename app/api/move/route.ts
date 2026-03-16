@@ -326,17 +326,27 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('[Move API] Applying move to position:', game.current_fen);
+    console.log('[Move API] ===== STEP 1: CHESS MOVE GENERATION =====');
+    console.log('[Move API] Current position (FEN):', game.current_fen);
+    console.log('[Move API] Move to apply:', { from, to, promotion });
 
     const moveResult = applyMove({
       fen: game.current_fen,
       move: { from, to, promotion },
     });
 
-    console.log('[Move API] Move validation result:', moveResult);
+    console.log('[Move API] Chess engine result:', {
+      ok: moveResult.ok,
+      fen: moveResult.fen,
+      san: moveResult.san,
+      isCheckmate: moveResult.isCheckmate,
+      isDraw: moveResult.isDraw,
+      isStalemate: moveResult.isStalemate,
+      error: moveResult.error,
+    });
 
     if (!moveResult.ok || !moveResult.fen || !moveResult.san) {
-      console.error('[Move API] Illegal move:', moveResult.error);
+      console.error('[Move API] ❌ Chess move validation failed');
       return NextResponse.json({
         step: "move_validation",
         error: "Illegal move",
@@ -344,6 +354,8 @@ export async function POST(req: NextRequest) {
         details: { from, to, promotion, fen: game.current_fen }
       }, { status: 400 });
     }
+
+    console.log('[Move API] ✓ Chess move validated successfully');
 
     const nextTurn = playerColor === "white" ? "black" : "white";
 
@@ -366,12 +378,22 @@ export async function POST(req: NextRequest) {
       timeoutAt = null;
     }
 
-    const { data: movesCount } = await supabase
+    console.log('[Move API] ===== STEP 2: INSERT INTO public.moves =====');
+
+    const { data: movesCount, error: movesCountError } = await supabase
       .from("moves")
       .select("move_number", { count: 'exact' })
       .eq("game_id", gameId)
       .order("move_number", { ascending: false })
       .limit(1);
+
+    console.log('[Move API] Move count query result:', {
+      hasData: !!movesCount,
+      count: movesCount?.length,
+      lastMoveNumber: movesCount?.[0]?.move_number,
+      hasError: !!movesCountError,
+      error: movesCountError,
+    });
 
     const moveNumber = movesCount && movesCount.length > 0
       ? movesCount[0].move_number + 1
@@ -386,30 +408,44 @@ export async function POST(req: NextRequest) {
       created_at: nowIso,
     };
 
-    console.log('[Move API] Inserting move:', moveInsert);
+    console.log('[Move API] Data to insert:', JSON.stringify(moveInsert, null, 2));
+    console.log('[Move API] Executing: INSERT INTO moves', moveInsert);
 
-    const { error: moveInsertError } = await supabase.from("moves").insert(moveInsert);
+    const moveInsertResult = await supabase.from("moves").insert(moveInsert);
 
-    if (moveInsertError) {
-      console.error('[Move API] Failed to insert move:', moveInsertError);
-      console.error('[Move API] Move insert error details:', {
-        message: moveInsertError.message,
-        details: moveInsertError.details,
-        hint: moveInsertError.hint,
-        code: moveInsertError.code,
-      });
+    console.log('[Move API] ===== INSERT RESPONSE =====');
+    console.log('[Move API] Status:', moveInsertResult.status);
+    console.log('[Move API] StatusText:', moveInsertResult.statusText);
+    console.log('[Move API] Has data:', !!moveInsertResult.data);
+    console.log('[Move API] Data:', moveInsertResult.data);
+    console.log('[Move API] Has error:', !!moveInsertResult.error);
+
+    if (moveInsertResult.error) {
+      console.log('[Move API] Error.message:', moveInsertResult.error.message);
+      console.log('[Move API] Error.code:', moveInsertResult.error.code);
+      console.log('[Move API] Error.details:', moveInsertResult.error.details);
+      console.log('[Move API] Error.hint:', moveInsertResult.error.hint);
+      console.log('[Move API] Full error object:', JSON.stringify(moveInsertResult.error, null, 2));
+    }
+
+    if (moveInsertResult.error) {
+      console.error('[Move API] ❌ FAILED AT: INSERT INTO public.moves');
       return NextResponse.json({
         step: "move_insert",
-        error: "Failed to save move",
-        message: moveInsertError.message,
-        code: moveInsertError.code,
-        details: moveInsertError.details,
-        hint: moveInsertError.hint,
-        moveData: moveInsert
+        failedAt: "INSERT INTO public.moves",
+        error: "Failed to insert move",
+        message: moveInsertResult.error.message,
+        code: moveInsertResult.error.code,
+        details: moveInsertResult.error.details,
+        hint: moveInsertResult.error.hint,
+        moveData: moveInsert,
+        fullError: moveInsertResult.error
       }, { status: 500 });
     }
 
-    console.log('[Move API] Move inserted successfully');
+    console.log('[Move API] ✓ Move inserted successfully');
+
+    console.log('[Move API] ===== STEP 3: UPDATE public.games =====');
 
     const gameUpdate: any = {
       current_fen: moveResult.fen,
@@ -421,33 +457,45 @@ export async function POST(req: NextRequest) {
       gameUpdate.result = resultString;
     }
 
-    console.log('[Move API] Updating game:', gameUpdate);
+    console.log('[Move API] Data to update:', JSON.stringify(gameUpdate, null, 2));
+    console.log('[Move API] Executing: UPDATE games SET', gameUpdate, 'WHERE id =', gameId);
 
-    const { error: updateError } = await supabase
+    const gameUpdateResult = await supabase
       .from("games")
       .update(gameUpdate)
       .eq("id", gameId);
 
-    if (updateError) {
-      console.error('[Move API] Failed to update game:', updateError);
-      console.error('[Move API] Game update error details:', {
-        message: updateError.message,
-        details: updateError.details,
-        hint: updateError.hint,
-        code: updateError.code,
-      });
+    console.log('[Move API] ===== UPDATE RESPONSE =====');
+    console.log('[Move API] Status:', gameUpdateResult.status);
+    console.log('[Move API] StatusText:', gameUpdateResult.statusText);
+    console.log('[Move API] Has data:', !!gameUpdateResult.data);
+    console.log('[Move API] Data:', gameUpdateResult.data);
+    console.log('[Move API] Has error:', !!gameUpdateResult.error);
+
+    if (gameUpdateResult.error) {
+      console.log('[Move API] Error.message:', gameUpdateResult.error.message);
+      console.log('[Move API] Error.code:', gameUpdateResult.error.code);
+      console.log('[Move API] Error.details:', gameUpdateResult.error.details);
+      console.log('[Move API] Error.hint:', gameUpdateResult.error.hint);
+      console.log('[Move API] Full error object:', JSON.stringify(gameUpdateResult.error, null, 2));
+    }
+
+    if (gameUpdateResult.error) {
+      console.error('[Move API] ❌ FAILED AT: UPDATE public.games');
       return NextResponse.json({
         step: "game_update",
+        failedAt: "UPDATE public.games",
         error: "Failed to update game",
-        message: updateError.message,
-        code: updateError.code,
-        details: updateError.details,
-        hint: updateError.hint,
-        gameUpdate
+        message: gameUpdateResult.error.message,
+        code: gameUpdateResult.error.code,
+        details: gameUpdateResult.error.details,
+        hint: gameUpdateResult.error.hint,
+        gameUpdate,
+        fullError: gameUpdateResult.error
       }, { status: 500 });
     }
 
-    console.log('[Move API] Game updated successfully');
+    console.log('[Move API] ✓ Game updated successfully');
 
     const response = {
       ok: true,
