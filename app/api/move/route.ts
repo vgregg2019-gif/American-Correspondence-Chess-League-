@@ -96,6 +96,30 @@ export async function POST(req: NextRequest) {
     console.log('[Move API] Auth context in client:', user.id);
     console.log('[Move API] RLS will be enforced: YES (using anon key with user auth)');
 
+    const adminClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data: adminGameCheck } = await adminClient
+      .from("games")
+      .select("id, white_player_id, black_player_id, status")
+      .eq("id", gameId)
+      .maybeSingle();
+
+    console.log('[Move API] 🔍 Admin check (bypasses RLS):', {
+      gameExists: !!adminGameCheck,
+      gameId: adminGameCheck?.id,
+      whitePlayerId: adminGameCheck?.white_player_id,
+      blackPlayerId: adminGameCheck?.black_player_id,
+      status: adminGameCheck?.status,
+      userIsWhite: adminGameCheck?.white_player_id === user.id,
+      userIsBlack: adminGameCheck?.black_player_id === user.id,
+      userShouldHaveAccess: adminGameCheck ?
+        (adminGameCheck.white_player_id === user.id || adminGameCheck.black_player_id === user.id) :
+        false,
+    });
+
     const selectQuery = `
         id,
         white_player_id,
@@ -121,9 +145,11 @@ export async function POST(req: NextRequest) {
       .select(selectQuery)
       .eq("id", gameId);
 
-    console.log('[Move API] Query built, executing .single()...');
+    console.log('[Move API] Query built, executing .maybeSingle()...');
+    console.log('[Move API] Expected RLS to pass if user is white_player_id OR black_player_id');
+    console.log('[Move API] User auth.uid():', user.id);
 
-    const result = await queryBuilder.single();
+    const result = await queryBuilder.maybeSingle();
     const { data: game, error: gameError, status: responseStatus, statusText: responseStatusText } = result;
 
     console.log('[Move API] ===== RAW SUPABASE RESPONSE =====');
@@ -158,14 +184,35 @@ export async function POST(req: NextRequest) {
     }
 
     if (gameError || !game) {
-      console.error('[Move API] Game not found:', gameError);
+      console.error('[Move API] ❌ Game fetch failed or returned null');
+      console.error('[Move API] This usually means:');
+      console.error('[Move API]   1. Game ID does not exist in database, OR');
+      console.error('[Move API]   2. RLS policy blocked access (user not white_player_id or black_player_id)');
+      console.error('[Move API] Error details:', {
+        hasError: !!gameError,
+        hasGame: !!game,
+        errorCode: gameError?.code,
+        errorMessage: gameError?.message,
+        gameId: gameId,
+        userId: user.id,
+      });
+
       return NextResponse.json({
         step: "game_fetch",
         error: "Game not found",
-        message: gameError?.message || "Game does not exist",
+        message: gameError?.message || "Game does not exist or you don't have access",
         code: gameError?.code,
         details: gameError?.details,
-        hint: gameError?.hint
+        hint: gameError?.hint,
+        debug: {
+          gameId,
+          userId: user.id,
+          possibleCauses: [
+            'Game does not exist',
+            'User is not white_player_id or black_player_id',
+            'RLS policy blocking access'
+          ]
+        }
       }, { status: 404 });
     }
 
