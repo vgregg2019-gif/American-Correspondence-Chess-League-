@@ -8,7 +8,9 @@ export async function POST(req: NextRequest) {
     console.log('[Move API] Processing move request');
 
     const authHeader = req.headers.get('authorization');
+    console.log('[Move API] ===== AUTH CHECK =====');
     console.log('[Move API] Authorization header present:', !!authHeader);
+    console.log('[Move API] Authorization header value (first 20 chars):', authHeader ? authHeader.substring(0, 20) + '...' : 'N/A');
 
     if (!authHeader) {
       return NextResponse.json({
@@ -19,6 +21,7 @@ export async function POST(req: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '');
+    console.log('[Move API] Token extracted (first 20 chars):', token.substring(0, 20) + '...');
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,7 +36,17 @@ export async function POST(req: NextRequest) {
     );
 
     console.log('[Move API] Verifying user from token...');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const authResult = await supabase.auth.getUser(token);
+    const { data: { user }, error: authError } = authResult;
+
+    console.log('[Move API] auth.getUser() result:', {
+      hasUser: !!user,
+      userId: user?.id,
+      userEmail: user?.email,
+      hasError: !!authError,
+      errorMessage: authError?.message,
+      errorStatus: authError?.status,
+    });
 
     if (authError || !user) {
       console.error('[Move API] Auth verification failed:', authError);
@@ -44,7 +57,7 @@ export async function POST(req: NextRequest) {
       }, { status: 401 });
     }
 
-    console.log('[Move API] Authenticated user:', user.id);
+    console.log('[Move API] ✓ Authenticated user ID:', user.id);
 
     const body = await req.json();
     const { gameId, playerId, from, to, promotion } = body;
@@ -69,13 +82,13 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('[Move API] About to fetch game with ID:', gameId);
+    console.log('[Move API] ===== GAME FETCH =====');
+    console.log('[Move API] Game ID to fetch:', gameId);
     console.log('[Move API] Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
     console.log('[Move API] Using service role key:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+    console.log('[Move API] Auth context in client:', user.id);
 
-    const queryBuilder = supabase
-      .from("games")
-      .select(`
+    const selectQuery = `
         id,
         white_player_id,
         black_player_id,
@@ -91,7 +104,13 @@ export async function POST(req: NextRequest) {
         timeout_at,
         created_at,
         updated_at
-      `)
+      `;
+
+    console.log('[Move API] Query: SELECT', selectQuery.trim(), 'FROM games WHERE id =', gameId);
+
+    const queryBuilder = supabase
+      .from("games")
+      .select(selectQuery)
       .eq("id", gameId);
 
     console.log('[Move API] Query built, executing .single()...');
@@ -99,18 +118,36 @@ export async function POST(req: NextRequest) {
     const result = await queryBuilder.single();
     const { data: game, error: gameError, status: responseStatus, statusText: responseStatusText } = result;
 
-    console.log('[Move API] FULL Game fetch result:', {
-      data: game,
-      error: gameError,
-      status: responseStatus,
-      statusText: responseStatusText,
-      hasData: !!game,
-      hasError: !!gameError,
-      errorCode: gameError?.code,
-      errorMessage: gameError?.message,
-      errorDetails: gameError?.details,
-      errorHint: gameError?.hint,
-    });
+    console.log('[Move API] ===== RAW SUPABASE RESPONSE =====');
+    console.log('[Move API] Response status:', responseStatus);
+    console.log('[Move API] Response statusText:', responseStatusText);
+    console.log('[Move API] Has data:', !!game);
+    console.log('[Move API] Has error:', !!gameError);
+
+    if (gameError) {
+      console.log('[Move API] Error code:', gameError.code);
+      console.log('[Move API] Error message:', gameError.message);
+      console.log('[Move API] Error details:', gameError.details);
+      console.log('[Move API] Error hint:', gameError.hint);
+      console.log('[Move API] Full error object:', JSON.stringify(gameError, null, 2));
+
+      if (gameError.code === 'PGRST116') {
+        console.log('[Move API] ⚠️  PGRST116 = No rows returned (either no match OR RLS denied)');
+      }
+    }
+
+    if (game) {
+      console.log('[Move API] Game data:', {
+        id: game.id,
+        white_player_id: game.white_player_id,
+        black_player_id: game.black_player_id,
+        status: game.status,
+        turn: game.turn,
+      });
+      console.log('[Move API] ✓ Game fetched successfully');
+    } else {
+      console.log('[Move API] ✗ No game data returned');
+    }
 
     if (gameError || !game) {
       console.error('[Move API] Game not found:', gameError);

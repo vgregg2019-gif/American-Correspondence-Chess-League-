@@ -107,24 +107,35 @@ export default function GamePage() {
 
       setGame(gameData);
 
-      console.log('Game time data:', {
-        turn: gameData.turn,
-        white_time: gameData.white_time_remaining_seconds,
-        black_time: gameData.black_time_remaining_seconds,
-        last_move_at: gameData.last_move_at,
-      });
+      console.log('[Timer] ===== GAME TIME DATA =====');
+      console.log('[Timer] Turn:', gameData.turn);
+      console.log('[Timer] White time (seconds):', gameData.white_time_remaining_seconds);
+      console.log('[Timer] Black time (seconds):', gameData.black_time_remaining_seconds);
+      console.log('[Timer] Last move at:', gameData.last_move_at);
+      console.log('[Timer] Type of white_time:', typeof gameData.white_time_remaining_seconds);
+      console.log('[Timer] Type of black_time:', typeof gameData.black_time_remaining_seconds);
 
-      const clock = calculateClock({
-        turn: gameData.turn,
-        white_time_remaining_seconds: gameData.white_time_remaining_seconds,
-        black_time_remaining_seconds: gameData.black_time_remaining_seconds,
-        last_move_at: gameData.last_move_at,
-      });
+      if (!gameData.last_move_at) {
+        console.log('[Timer] No last_move_at - using initial time values directly');
+        const whiteInitial = gameData.white_time_remaining_seconds ?? 172800;
+        const blackInitial = gameData.black_time_remaining_seconds ?? 172800;
+        setWhiteTime(whiteInitial);
+        setBlackTime(blackInitial);
+        console.log('[Timer] Set times:', { white: whiteInitial, black: blackInitial });
+      } else {
+        console.log('[Timer] Calculating clock from last move...');
+        const clock = calculateClock({
+          turn: gameData.turn,
+          white_time_remaining_seconds: gameData.white_time_remaining_seconds,
+          black_time_remaining_seconds: gameData.black_time_remaining_seconds,
+          last_move_at: gameData.last_move_at,
+        });
 
-      console.log('Calculated clock:', clock);
+        console.log('[Timer] Calculated clock:', clock);
 
-      setWhiteTime(clock.whiteRemaining || 0);
-      setBlackTime(clock.blackRemaining || 0);
+        setWhiteTime(clock.whiteRemaining);
+        setBlackTime(clock.blackRemaining);
+      }
 
       const { data: movesData, error: movesError } = await supabase
         .from('moves')
@@ -273,22 +284,47 @@ export default function GamePage() {
     const confirmed = confirm('Are you sure you want to resign?');
     if (!confirmed) return;
 
+    console.log('[Resign] ===== RESIGN REQUEST =====');
+    console.log('[Resign] Game ID:', game.id);
+    console.log('[Resign] User ID:', userId);
+    console.log('[Resign] White player:', game.white_player_id);
+    console.log('[Resign] Black player:', game.black_player_id);
+
     const winnerId =
       game.white_player_id === userId
         ? game.black_player_id
         : game.white_player_id;
 
-    const { error } = await supabase
+    const updatePayload = {
+      status: 'finished' as const,
+      winner_id: winnerId,
+      end_reason: 'resignation',
+    };
+
+    console.log('[Resign] Update payload:', updatePayload);
+    console.log('[Resign] Filter: .eq("id", "' + game.id + '")');
+
+    const result = await supabase
       .from('games')
-      .update({
-        status: 'finished',
-        winner_id: winnerId,
-        end_reason: 'resignation',
-      })
+      .update(updatePayload)
       .eq('id', game.id);
 
-    if (error) {
-      alert('Failed to resign');
+    console.log('[Resign] ===== SUPABASE RESPONSE =====');
+    console.log('[Resign] Error:', result.error);
+    console.log('[Resign] Data:', result.data);
+    console.log('[Resign] Status:', result.status);
+    console.log('[Resign] StatusText:', result.statusText);
+
+    if (result.error) {
+      console.error('[Resign] Full error object:', {
+        code: result.error.code,
+        message: result.error.message,
+        details: result.error.details,
+        hint: result.error.hint,
+      });
+      alert('Failed to resign: ' + result.error.message);
+    } else {
+      console.log('[Resign] ✓ Resignation successful');
     }
   }
 

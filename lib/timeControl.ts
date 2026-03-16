@@ -14,13 +14,33 @@ export type CalculatedClock = {
 };
 
 export function calculateClock(state: GameClockState, now = new Date()): CalculatedClock {
-  if (!state || !state.last_move_at ||
+  console.log('[calculateClock] Input state:', {
+    turn: state?.turn,
+    white_time: state?.white_time_remaining_seconds,
+    black_time: state?.black_time_remaining_seconds,
+    last_move_at: state?.last_move_at,
+    hasLastMove: !!state?.last_move_at,
+  });
+
+  if (!state ||
       typeof state.white_time_remaining_seconds !== 'number' ||
       typeof state.black_time_remaining_seconds !== 'number') {
+    console.log('[calculateClock] Invalid state, returning zeros');
     return {
       whiteRemaining: 0,
       blackRemaining: 0,
       activeColor: state?.turn || "white",
+      timedOut: false,
+      timedOutColor: undefined,
+    };
+  }
+
+  if (!state.last_move_at) {
+    console.log('[calculateClock] No last_move_at (first move), returning initial times');
+    return {
+      whiteRemaining: state.white_time_remaining_seconds,
+      blackRemaining: state.black_time_remaining_seconds,
+      activeColor: state.turn,
       timedOut: false,
       timedOutColor: undefined,
     };
