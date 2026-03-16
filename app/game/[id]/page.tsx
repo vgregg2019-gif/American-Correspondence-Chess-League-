@@ -290,18 +290,13 @@ export default function GamePage() {
     console.log('[Resign] White player:', game.white_player_id);
     console.log('[Resign] Black player:', game.black_player_id);
 
-    const winnerId =
-      game.white_player_id === userId
-        ? game.black_player_id
-        : game.white_player_id;
-
     const updatePayload = {
       status: 'finished' as const,
-      winner_id: winnerId,
     };
 
     console.log('[Resign] Update payload:', updatePayload);
     console.log('[Resign] Filter: .eq("id", "' + game.id + '")');
+    console.log('[Resign] Note: Only updating status until schema cache refreshes');
 
     const result = await supabase
       .from('games')
