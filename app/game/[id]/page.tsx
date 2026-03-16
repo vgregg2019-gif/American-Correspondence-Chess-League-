@@ -298,7 +298,6 @@ export default function GamePage() {
     const updatePayload = {
       status: 'finished' as const,
       winner_id: winnerId,
-      end_reason: 'resignation',
     };
 
     console.log('[Resign] Update payload:', updatePayload);

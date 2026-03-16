@@ -96,29 +96,33 @@ export async function POST(req: NextRequest) {
     console.log('[Move API] Auth context in client:', user.id);
     console.log('[Move API] RLS will be enforced: YES (using anon key with user auth)');
 
-    const adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const adminClient = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+      );
 
-    const { data: adminGameCheck } = await adminClient
-      .from("games")
-      .select("id, white_player_id, black_player_id, status")
-      .eq("id", gameId)
-      .maybeSingle();
+      const { data: adminGameCheck } = await adminClient
+        .from("games")
+        .select("id, white_player_id, black_player_id, status")
+        .eq("id", gameId)
+        .maybeSingle();
 
-    console.log('[Move API] 🔍 Admin check (bypasses RLS):', {
-      gameExists: !!adminGameCheck,
-      gameId: adminGameCheck?.id,
-      whitePlayerId: adminGameCheck?.white_player_id,
-      blackPlayerId: adminGameCheck?.black_player_id,
-      status: adminGameCheck?.status,
-      userIsWhite: adminGameCheck?.white_player_id === user.id,
-      userIsBlack: adminGameCheck?.black_player_id === user.id,
-      userShouldHaveAccess: adminGameCheck ?
-        (adminGameCheck.white_player_id === user.id || adminGameCheck.black_player_id === user.id) :
-        false,
-    });
+      console.log('[Move API] 🔍 Admin check (bypasses RLS):', {
+        gameExists: !!adminGameCheck,
+        gameId: adminGameCheck?.id,
+        whitePlayerId: adminGameCheck?.white_player_id,
+        blackPlayerId: adminGameCheck?.black_player_id,
+        status: adminGameCheck?.status,
+        userIsWhite: adminGameCheck?.white_player_id === user.id,
+        userIsBlack: adminGameCheck?.black_player_id === user.id,
+        userShouldHaveAccess: adminGameCheck ?
+          (adminGameCheck.white_player_id === user.id || adminGameCheck.black_player_id === user.id) :
+          false,
+      });
+    } else {
+      console.log('[Move API] ⚠️  No service role key available - skipping admin check');
+    }
 
     const selectQuery = `
         id,
@@ -128,7 +132,6 @@ export async function POST(req: NextRequest) {
         turn,
         status,
         winner_id,
-        end_reason,
         time_control,
         white_time_remaining_seconds,
         black_time_remaining_seconds,
@@ -346,7 +349,6 @@ export async function POST(req: NextRequest) {
           .update({
             status: "finished",
             winner_id: winnerId,
-            end_reason: "timeout",
             white_time_remaining_seconds: clock.whiteRemaining,
             black_time_remaining_seconds: clock.blackRemaining,
             updated_at: nowIso,
@@ -403,7 +405,6 @@ export async function POST(req: NextRequest) {
 
     let status: 'active' | 'finished' = "active";
     let winnerId: string | null = null;
-    let endReason: string | null = null;
     let timeoutAt: string | null = null;
 
     console.log('[Move API] About to calculate timeout with:', {
@@ -441,7 +442,6 @@ export async function POST(req: NextRequest) {
     if (moveResult.isCheckmate) {
       status = "finished";
       winnerId = playerId;
-      endReason = "checkmate";
       timeoutAt = null;
     } else if (
       moveResult.isDraw ||
@@ -451,13 +451,6 @@ export async function POST(req: NextRequest) {
     ) {
       status = "finished";
       winnerId = null;
-      endReason = moveResult.isStalemate
-        ? "stalemate"
-        : moveResult.isInsufficientMaterial
-        ? "draw"
-        : moveResult.isThreefoldRepetition
-        ? "draw"
-        : "draw";
       timeoutAt = null;
     }
 
@@ -511,7 +504,6 @@ export async function POST(req: NextRequest) {
       turn: status === "active" ? nextTurn : game.turn,
       status,
       winner_id: winnerId,
-      end_reason: endReason,
       white_time_remaining_seconds: newWhiteTime,
       black_time_remaining_seconds: newBlackTime,
       last_move_at: nowIso,
@@ -553,7 +545,6 @@ export async function POST(req: NextRequest) {
       move: moveResult.san,
       status,
       winnerId,
-      endReason,
     };
 
     console.log('[Move API] Success response:', response);
