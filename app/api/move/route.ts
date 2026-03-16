@@ -7,15 +7,57 @@ export async function POST(req: NextRequest) {
   try {
     console.log('[Move API] Processing move request');
 
+    const authHeader = req.headers.get('authorization');
+    console.log('[Move API] Authorization header present:', !!authHeader);
+
+    if (!authHeader) {
+      return NextResponse.json({
+        step: "auth",
+        error: "Missing authorization",
+        message: "Authorization header is required"
+      }, { status: 401 });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: authHeader
+          }
+        }
+      }
     );
+
+    console.log('[Move API] Verifying user from token...');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      console.error('[Move API] Auth verification failed:', authError);
+      return NextResponse.json({
+        step: "auth",
+        error: "Invalid authorization",
+        message: authError?.message || "Could not verify user token"
+      }, { status: 401 });
+    }
+
+    console.log('[Move API] Authenticated user:', user.id);
 
     const body = await req.json();
     const { gameId, playerId, from, to, promotion } = body;
 
     console.log('[Move API] Request body:', { gameId, playerId, from, to, promotion });
+
+    if (user.id !== playerId) {
+      return NextResponse.json({
+        step: "auth",
+        error: "Player ID mismatch",
+        message: "Authenticated user does not match playerId in request"
+      }, { status: 403 });
+    }
 
     if (!gameId || !playerId || !from || !to) {
       console.error('[Move API] Missing required fields');
@@ -27,7 +69,11 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    const { data: game, error: gameError } = await supabase
+    console.log('[Move API] About to fetch game with ID:', gameId);
+    console.log('[Move API] Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log('[Move API] Using service role key:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+    const queryBuilder = supabase
       .from("games")
       .select(`
         id,
@@ -46,10 +92,25 @@ export async function POST(req: NextRequest) {
         created_at,
         updated_at
       `)
-      .eq("id", gameId)
-      .single();
+      .eq("id", gameId);
 
-    console.log('[Move API] Game fetch result:', { game, gameError });
+    console.log('[Move API] Query built, executing .single()...');
+
+    const result = await queryBuilder.single();
+    const { data: game, error: gameError, status: responseStatus, statusText: responseStatusText } = result;
+
+    console.log('[Move API] FULL Game fetch result:', {
+      data: game,
+      error: gameError,
+      status: responseStatus,
+      statusText: responseStatusText,
+      hasData: !!game,
+      hasError: !!gameError,
+      errorCode: gameError?.code,
+      errorMessage: gameError?.message,
+      errorDetails: gameError?.details,
+      errorHint: gameError?.hint,
+    });
 
     if (gameError || !game) {
       console.error('[Move API] Game not found:', gameError);

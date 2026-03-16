@@ -217,6 +217,15 @@ export default function GamePage() {
     setMovingPiece(true);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        console.error('No session found');
+        alert('You must be logged in to make a move');
+        setMovingPiece(false);
+        return false;
+      }
+
       const movePayload = {
         gameId: game.id,
         playerId: userId,
@@ -229,7 +238,10 @@ export default function GamePage() {
 
       const response = await fetch('/api/move', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: JSON.stringify(movePayload),
       });
 
