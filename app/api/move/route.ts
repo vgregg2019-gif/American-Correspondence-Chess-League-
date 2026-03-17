@@ -455,8 +455,6 @@ export async function POST(req: NextRequest) {
     const gameUpdate: any = {
       current_fen: moveResult.fen,
       status,
-      turn: nextTurn,
-      timeout_at: status === "active" ? timeoutAt : null,
     };
 
     if (resultString) {
