@@ -163,8 +163,6 @@ export default function DashboardPage() {
           black_player_id: blackId,
           status: 'active',
           current_fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-          pgn: '',
-          time_control: '1day',
           timeout_at: new Date(Date.now() + 172800 * 1000).toISOString(),
         };
 
@@ -183,7 +181,6 @@ export default function DashboardPage() {
             id: newGame.id,
             status: newGame.status,
             current_fen: newGame.current_fen,
-            pgn: newGame.pgn,
             time_control: newGame.time_control,
           });
         }

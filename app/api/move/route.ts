@@ -357,7 +357,7 @@ export async function POST(req: NextRequest) {
 
     console.log('[Move API] ✓ Chess move validated successfully');
 
-    const nextTurn = playerColor === "white" ? "black" : "white";
+    const nextTurn: 'white' | 'black' = playerColor === "white" ? "black" : "white";
 
     let status: 'active' | 'finished' = "active";
     let resultString: string | null = null;
@@ -450,6 +450,7 @@ export async function POST(req: NextRequest) {
     const gameUpdate: any = {
       current_fen: moveResult.fen,
       status,
+      turn: nextTurn,
       timeout_at: status === "active" ? timeoutAt : null,
     };
 
