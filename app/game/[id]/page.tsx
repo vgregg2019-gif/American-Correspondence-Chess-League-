@@ -147,12 +147,22 @@ export default function GamePage() {
         (payload) => {
           const updatedGame = payload.new as any;
 
+          console.log('[Realtime] Game UPDATE received:', updatedGame);
+
           setGame((prev) => {
             if (!prev) return prev;
-            return {
+            const merged = {
               ...prev,
               ...updatedGame,
+              white_player: prev.white_player,
+              black_player: prev.black_player,
             };
+            console.log('[Realtime] Merged game state:', {
+              current_fen: merged.current_fen,
+              status: merged.status,
+              result: merged.result,
+            });
+            return merged;
           });
         }
       )
@@ -240,6 +250,9 @@ export default function GamePage() {
       }
 
       console.log('Move successful:', result);
+
+      await loadGame();
+
       setMovingPiece(false);
       return true;
     } catch (err) {
