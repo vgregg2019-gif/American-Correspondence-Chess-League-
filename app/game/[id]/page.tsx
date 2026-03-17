@@ -100,6 +100,7 @@ export default function GamePage() {
         return;
       }
 
+      console.log('[loadGame] Setting game state with FEN:', gameData.current_fen);
       setGame(gameData);
 
       console.log('[Timer] Initial time set to 48 hours (172800 seconds)');
@@ -250,6 +251,8 @@ export default function GamePage() {
       }
 
       console.log('Move successful:', result);
+      console.log('[Move Response] Returned FEN:', result.fen);
+      console.log('[Move Response] Full response:', JSON.stringify(result, null, 2));
 
       await loadGame();
 
@@ -360,6 +363,7 @@ export default function GamePage() {
   const currentTurn = fenTurn === 'w' ? 'white' : 'black';
   const isMyTurn = currentTurn === playerColor;
 
+  console.log('[Game Page] Render - Board position:', boardPosition);
   console.log('[Game Page] Turn detection:', {
     userId,
     white_player_id: game.white_player_id,
