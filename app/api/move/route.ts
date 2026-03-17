@@ -461,7 +461,10 @@ export async function POST(req: NextRequest) {
       gameUpdate.result = resultString;
     }
 
-    console.log('[Move API] Data to update:', JSON.stringify(gameUpdate, null, 2));
+    console.log('[Move API] ===== EXACT FINAL UPDATE PAYLOAD =====');
+    console.log('[Move API] Payload keys:', Object.keys(gameUpdate));
+    console.log('[Move API] Full payload:', JSON.stringify(gameUpdate, null, 2));
+    console.log('[Move API] Columns being written:', Object.keys(gameUpdate).join(', '));
     console.log('[Move API] Executing: UPDATE games SET', gameUpdate, 'WHERE id =', gameId);
 
     const gameUpdateResult = await supabase
@@ -469,12 +472,20 @@ export async function POST(req: NextRequest) {
       .update(gameUpdate)
       .eq("id", gameId);
 
-    console.log('[Move API] ===== UPDATE RESPONSE =====');
-    console.log('[Move API] Status:', gameUpdateResult.status);
-    console.log('[Move API] StatusText:', gameUpdateResult.statusText);
+    console.log('[Move API] ===== SUPABASE UPDATE RESPONSE =====');
+    console.log('[Move API] Response status:', gameUpdateResult.status);
+    console.log('[Move API] Response statusText:', gameUpdateResult.statusText);
+    console.log('[Move API] Response count:', gameUpdateResult.count);
     console.log('[Move API] Has data:', !!gameUpdateResult.data);
-    console.log('[Move API] Data:', gameUpdateResult.data);
+    console.log('[Move API] Data value:', gameUpdateResult.data);
     console.log('[Move API] Has error:', !!gameUpdateResult.error);
+    console.log('[Move API] Full Supabase response:', JSON.stringify({
+      status: gameUpdateResult.status,
+      statusText: gameUpdateResult.statusText,
+      count: gameUpdateResult.count,
+      error: gameUpdateResult.error,
+      data: gameUpdateResult.data
+    }, null, 2));
 
     if (gameUpdateResult.error) {
       console.log('[Move API] Error.message:', gameUpdateResult.error.message);
