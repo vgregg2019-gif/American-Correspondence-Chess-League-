@@ -430,6 +430,9 @@ export async function POST(req: NextRequest) {
 
     if (moveInsertResult.error) {
       console.error('[Move API] ❌ FAILED AT: INSERT INTO public.moves');
+      console.error('[Move API] Full error object:', JSON.stringify(moveInsertResult.error, null, 2));
+      console.error('[Move API] Move data we tried to insert:', JSON.stringify(moveInsert, null, 2));
+
       return NextResponse.json({
         step: "move_insert",
         failedAt: "INSERT INTO public.moves",
@@ -439,7 +442,7 @@ export async function POST(req: NextRequest) {
         details: moveInsertResult.error.details,
         hint: moveInsertResult.error.hint,
         moveData: moveInsert,
-        fullError: moveInsertResult.error
+        fullError: JSON.parse(JSON.stringify(moveInsertResult.error))
       }, { status: 500 });
     }
 
