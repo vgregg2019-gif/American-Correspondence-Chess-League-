@@ -151,20 +151,34 @@ export default function GamePage() {
           const updatedGame = payload.new as any;
 
           console.log('[Realtime] Game UPDATE received:', updatedGame);
+          console.log('[Realtime] Updated FEN:', updatedGame.current_fen);
+          console.log('[Realtime] Updated status:', updatedGame.status);
+          console.log('[Realtime] Updated result:', updatedGame.result);
 
           setGame((prev) => {
-            if (!prev) return prev;
+            if (!prev) {
+              console.log('[Realtime] No previous game state for UPDATE');
+              return prev;
+            }
+
             const merged = {
               ...prev,
               ...updatedGame,
               white_player: prev.white_player,
               black_player: prev.black_player,
             };
-            console.log('[Realtime] Merged game state:', {
-              current_fen: merged.current_fen,
+
+            const fenParts = merged.current_fen?.split(' ') || [];
+            const turn = fenParts[1] === 'w' ? 'white' : 'black';
+
+            console.log('[Realtime] Game UPDATE applied:', {
+              old_fen: prev.current_fen,
+              new_fen: merged.current_fen,
+              new_turn: turn,
               status: merged.status,
               result: merged.result,
             });
+
             return merged;
           });
         }
@@ -177,20 +191,69 @@ export default function GamePage() {
           table: 'moves',
           filter: `game_id=eq.${gameId}`,
         },
-        (payload) => {
+        async (payload) => {
           const newMove = payload.new as Move;
           console.log('[Realtime] Move INSERT received:', newMove);
-          setMoves((prev) => [...prev, newMove]);
+          console.log('[Realtime] New move FEN:', newMove.fen);
+          console.log('[Realtime] New move player_id:', newMove.player_id);
+
+          setMoves((prev) => {
+            const updated = [...prev, newMove];
+            console.log('[Realtime] Moves list updated, total moves:', updated.length);
+            return updated;
+          });
 
           if (newMove.fen) {
-            console.log('[Realtime] Updating game FEN from move:', newMove.fen);
+            console.log('[Realtime] Updating game current_fen to:', newMove.fen);
+            const fenParts = newMove.fen.split(' ');
+            const newTurn = fenParts[1] === 'w' ? 'white' : 'black';
+            console.log('[Realtime] New turn will be:', newTurn);
+
             setGame((prev) => {
-              if (!prev) return prev;
-              return {
+              if (!prev) {
+                console.log('[Realtime] No previous game state, skipping update');
+                return prev;
+              }
+
+              const updated = {
                 ...prev,
                 current_fen: newMove.fen,
               };
+
+              console.log('[Realtime] Game state updated:', {
+                old_fen: prev.current_fen,
+                new_fen: updated.current_fen,
+                white_player_id: updated.white_player_id,
+                black_player_id: updated.black_player_id,
+              });
+
+              return updated;
             });
+
+            console.log('[Realtime] Fetching latest game state as fallback...');
+            try {
+              const { data: latestGame } = await supabase
+                .from('games')
+                .select('id, current_fen, status, result, timeout_at')
+                .eq('id', gameId)
+                .maybeSingle();
+
+              if (latestGame) {
+                console.log('[Realtime] Fallback fetch successful, latest FEN:', latestGame.current_fen);
+                setGame((prev) => {
+                  if (!prev) return prev;
+                  return {
+                    ...prev,
+                    current_fen: latestGame.current_fen,
+                    status: latestGame.status,
+                    result: latestGame.result,
+                    timeout_at: latestGame.timeout_at,
+                  };
+                });
+              }
+            } catch (err) {
+              console.error('[Realtime] Fallback fetch failed:', err);
+            }
           }
         }
       )
@@ -281,7 +344,22 @@ export default function GamePage() {
       console.log('[Move Response] Returned FEN:', result.fen);
       console.log('[Move Response] Full response:', JSON.stringify(result, null, 2));
 
-      console.log('[Frontend Move] Move persisted, realtime will update UI');
+      console.log('[Frontend Move] Move persisted, updating local state immediately');
+
+      if (result.fen) {
+        console.log('[Frontend Move] Optimistically updating game FEN to:', result.fen);
+        setGame((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            current_fen: result.fen,
+            status: result.status || prev.status,
+            result: result.result || prev.result,
+          };
+        });
+      }
+
+      console.log('[Frontend Move] Realtime will also update UI when event arrives');
 
       setMovingPiece(false);
       return true;
