@@ -402,10 +402,8 @@ export async function POST(req: NextRequest) {
     const moveInsert = {
       game_id: gameId,
       move_number: moveNumber,
-      san: moveResult.san,
-      uci: `${from}${to}${promotion || ''}`,
-      fen: game.current_fen,
-      fen_after: moveResult.fen,
+      move: moveResult.san,
+      fen: moveResult.fen,
       player_id: playerId,
       created_at: nowIso,
     };
