@@ -122,7 +122,7 @@ export default function GamePage() {
       console.log('[loadGame] Setting game state with FEN:', gameData.current_fen);
 
       console.log('[Timer] ===== TIMER RECONSTRUCTION ON PAGE LOAD =====');
-      console.log('[Timer] Raw values from database:', {
+      console.log('[Timer] Raw database values (snapshot at last_move_at):', {
         white_time_remaining_seconds: gameData.white_time_remaining_seconds,
         black_time_remaining_seconds: gameData.black_time_remaining_seconds,
         last_move_at: gameData.last_move_at,
@@ -132,26 +132,20 @@ export default function GamePage() {
       const fenTurn = gameData.current_fen?.split(' ')[1];
       const currentTurn = fenTurn === 'w' ? 'white' : 'black';
 
-      const clockState = calculateClock({
-        turn: currentTurn,
-        white_time_remaining_seconds: gameData.white_time_remaining_seconds,
-        black_time_remaining_seconds: gameData.black_time_remaining_seconds,
-        last_move_at: gameData.last_move_at,
-      }, new Date());
-
-      console.log('[Timer] Calculated clock state:', {
-        current_turn: currentTurn,
-        white_remaining: clockState.whiteRemaining,
-        black_remaining: clockState.blackRemaining,
-        active_color: clockState.activeColor,
-        timed_out: clockState.timedOut,
-      });
+      console.log('[Timer] Active player:', currentTurn);
+      console.log('[Timer] Inactive player will show snapshot value');
+      console.log('[Timer] Active player timer will count down from snapshot value');
 
       setGame(gameData);
-      setWhiteTime(clockState.whiteRemaining);
-      setBlackTime(clockState.blackRemaining);
+      setWhiteTime(gameData.white_time_remaining_seconds);
+      setBlackTime(gameData.black_time_remaining_seconds);
 
-      console.log('[Timer] ✓ Timers set from authoritative game state');
+      console.log('[Timer] ✓ Timers initialized:', {
+        white_time: gameData.white_time_remaining_seconds,
+        black_time: gameData.black_time_remaining_seconds,
+        last_move_at: gameData.last_move_at,
+        active_player: currentTurn,
+      });
 
       const { data: movesData, error: movesError } = await supabase
         .from('moves')
@@ -203,7 +197,7 @@ export default function GamePage() {
           console.log('[Realtime] Updated FEN:', updatedGame.current_fen);
           console.log('[Realtime] Updated status:', updatedGame.status);
           console.log('[Realtime] Updated result:', updatedGame.result);
-          console.log('[Realtime] Updated timer state:', {
+          console.log('[Realtime] Updated timer state (snapshot at last_move_at):', {
             white_time_remaining_seconds: updatedGame.white_time_remaining_seconds,
             black_time_remaining_seconds: updatedGame.black_time_remaining_seconds,
             last_move_at: updatedGame.last_move_at,
@@ -225,26 +219,30 @@ export default function GamePage() {
             const fenParts = merged.current_fen?.split(' ') || [];
             const turn = fenParts[1] === 'w' ? 'white' : 'black';
 
-            const clockState = calculateClock({
-              turn,
-              white_time_remaining_seconds: merged.white_time_remaining_seconds,
-              black_time_remaining_seconds: merged.black_time_remaining_seconds,
-              last_move_at: merged.last_move_at,
-            }, new Date());
-
-            console.log('[Realtime] Recalculated timer state:', {
-              white_remaining: clockState.whiteRemaining,
-              black_remaining: clockState.blackRemaining,
-              active_color: clockState.activeColor,
+            console.log('[Realtime] Timer values from update:', {
+              old_white_time: prev.white_time_remaining_seconds,
+              new_white_time: merged.white_time_remaining_seconds,
+              old_black_time: prev.black_time_remaining_seconds,
+              new_black_time: merged.black_time_remaining_seconds,
+              old_last_move_at: prev.last_move_at,
+              new_last_move_at: merged.last_move_at,
             });
 
-            setWhiteTime(clockState.whiteRemaining);
-            setBlackTime(clockState.blackRemaining);
+            if (merged.white_time_remaining_seconds !== prev.white_time_remaining_seconds) {
+              console.log('[Realtime] ✓ White time changed, updating');
+              setWhiteTime(merged.white_time_remaining_seconds);
+            }
+
+            if (merged.black_time_remaining_seconds !== prev.black_time_remaining_seconds) {
+              console.log('[Realtime] ✓ Black time changed, updating');
+              setBlackTime(merged.black_time_remaining_seconds);
+            }
 
             console.log('[Realtime] Game UPDATE applied:', {
               old_fen: prev.current_fen,
               new_fen: merged.current_fen,
               new_turn: turn,
+              active_player: turn,
               status: merged.status,
               result: merged.result,
             });

@@ -14,12 +14,13 @@ export type CalculatedClock = {
 };
 
 export function calculateClock(state: GameClockState, now = new Date()): CalculatedClock {
+  console.log('[calculateClock] ===== TIMER CALCULATION =====');
   console.log('[calculateClock] Input state:', {
     turn: state?.turn,
     white_time: state?.white_time_remaining_seconds,
     black_time: state?.black_time_remaining_seconds,
     last_move_at: state?.last_move_at,
-    hasLastMove: !!state?.last_move_at,
+    now: now.toISOString(),
   });
 
   if (!state ||
@@ -36,7 +37,7 @@ export function calculateClock(state: GameClockState, now = new Date()): Calcula
   }
 
   if (!state.last_move_at) {
-    console.log('[calculateClock] No last_move_at (first move), returning initial times');
+    console.log('[calculateClock] No last_move_at (game start), returning initial times');
     return {
       whiteRemaining: state.white_time_remaining_seconds,
       blackRemaining: state.black_time_remaining_seconds,
@@ -50,6 +51,7 @@ export function calculateClock(state: GameClockState, now = new Date()): Calcula
   const nowMs = now.getTime();
 
   if (isNaN(lastMoveMs) || isNaN(nowMs)) {
+    console.log('[calculateClock] Invalid timestamps, returning stored values');
     return {
       whiteRemaining: state.white_time_remaining_seconds || 0,
       blackRemaining: state.black_time_remaining_seconds || 0,
@@ -61,14 +63,31 @@ export function calculateClock(state: GameClockState, now = new Date()): Calcula
 
   const elapsedSeconds = Math.max(0, Math.floor((nowMs - lastMoveMs) / 1000));
 
+  console.log('[calculateClock] Time calculation:', {
+    last_move_at: state.last_move_at,
+    last_move_ms: lastMoveMs,
+    now_ms: nowMs,
+    elapsed_seconds: elapsedSeconds,
+    active_player: state.turn,
+  });
+
   let whiteRemaining = state.white_time_remaining_seconds || 0;
   let blackRemaining = state.black_time_remaining_seconds || 0;
 
   if (state.turn === "white") {
+    console.log('[calculateClock] White is active - deducting elapsed time from white');
     whiteRemaining = Math.max(0, whiteRemaining - elapsedSeconds);
   } else {
+    console.log('[calculateClock] Black is active - deducting elapsed time from black');
     blackRemaining = Math.max(0, blackRemaining - elapsedSeconds);
   }
+
+  console.log('[calculateClock] Final calculated times:', {
+    white_remaining: whiteRemaining,
+    black_remaining: blackRemaining,
+    white_lost: state.turn === "white" ? elapsedSeconds : 0,
+    black_lost: state.turn === "black" ? elapsedSeconds : 0,
+  });
 
   const timedOut =
     (state.turn === "white" && whiteRemaining <= 0) ||
