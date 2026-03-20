@@ -423,7 +423,7 @@ export async function POST(req: NextRequest) {
     console.log('[Move API] Data to insert:', JSON.stringify(moveInsert, null, 2));
     console.log('[Move API] Executing: INSERT INTO moves', moveInsert);
 
-    const moveInsertResult = await supabase.from("moves").insert(moveInsert);
+    const moveInsertResult = await supabase.from("moves").insert(moveInsert).select();
 
     console.log('[Move API] ===== INSERT RESPONSE =====');
     console.log('[Move API] Status:', moveInsertResult.status);
@@ -495,12 +495,17 @@ export async function POST(req: NextRequest) {
       console.error('[Move API] Realtime subscription will handle UI update');
     }
 
+    const insertedMove = moveInsertResult.data?.[0];
+
     const response = {
       ok: true,
       fen: moveResult.fen,
       move: moveResult.san,
+      san: moveResult.san,
       status,
       result: resultString,
+      moveId: insertedMove?.id,
+      moveNumber: moveNumber,
     };
 
     console.log('[Move API] Success response:', response);

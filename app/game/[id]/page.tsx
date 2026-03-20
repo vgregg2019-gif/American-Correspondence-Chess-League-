@@ -200,38 +200,39 @@ export default function GamePage() {
         async (payload) => {
           const newMove = payload.new as Move;
           console.log('[Realtime] Move INSERT received:', newMove);
-          console.log('[Realtime] New move number:', newMove.move_number);
-          console.log('[Realtime] New move FEN:', newMove.fen);
+          console.log('[Realtime] Move number:', newMove.move_number, 'ID:', newMove.id);
           console.log('[Realtime] Current lastMoveNumber:', lastMoveNumberRef.current);
 
-          if (newMove.move_number <= lastMoveNumberRef.current) {
-            console.log('[Realtime] ⚠️ Ignoring old/duplicate move event - already have move', newMove.move_number);
+          if (newMove.move_number < lastMoveNumberRef.current) {
+            console.log('[Realtime] ⚠️ Ignoring OLDER move event:', newMove.move_number);
             return;
           }
 
-          console.log('[Realtime] ✓ Accepting new move:', newMove.move_number);
-          lastMoveNumberRef.current = newMove.move_number;
+          let shouldUpdateState = false;
 
           setMoves((prev) => {
             const exists = prev.some(m => m.id === newMove.id);
             if (exists) {
-              console.log('[Realtime] Move already in list, skipping duplicate');
+              console.log('[Realtime] Move already in list (from optimistic update)');
               return prev;
             }
-            const updated = [...prev, newMove];
-            console.log('[Realtime] Moves list updated, total moves:', updated.length);
-            return updated;
+            console.log('[Realtime] ✓ Adding move to history');
+            shouldUpdateState = true;
+            return [...prev, newMove];
           });
 
-          if (newMove.fen) {
-            console.log('[Realtime] Updating game current_fen to:', newMove.fen);
-            const fenParts = newMove.fen.split(' ');
-            const newTurn = fenParts[1] === 'w' ? 'white' : 'black';
-            console.log('[Realtime] New turn will be:', newTurn);
+          if (newMove.move_number > lastMoveNumberRef.current) {
+            console.log('[Realtime] ✓ Updating lastMoveNumber:', newMove.move_number);
+            lastMoveNumberRef.current = newMove.move_number;
+            shouldUpdateState = true;
+          }
+
+          if (shouldUpdateState && newMove.fen) {
+            console.log('[Realtime] ✓ Updating game FEN (opponent move or sync)');
 
             setGame((prev) => {
               if (!prev) {
-                console.log('[Realtime] No previous game state, skipping update');
+                console.log('[Realtime] No previous game state');
                 return prev;
               }
 
@@ -240,15 +241,15 @@ export default function GamePage() {
                 current_fen: newMove.fen,
               };
 
-              console.log('[Realtime] Game state updated from move INSERT:', {
+              console.log('[Realtime] Game state reconciled:', {
                 move_number: newMove.move_number,
-                old_fen: prev.current_fen,
                 new_fen: updated.current_fen,
-                new_turn: newTurn,
               });
 
               return updated;
             });
+          } else {
+            console.log('[Realtime] No state update needed (already synced via optimistic update)');
           }
         }
       )
@@ -341,12 +342,26 @@ export default function GamePage() {
 
       console.log('[Frontend Move] Move persisted, updating local state immediately');
 
-      if (result.fen) {
-        const optimisticMoveNumber = lastMoveNumberRef.current + 1;
+      if (result.fen && result.moveId) {
+        const optimisticMoveNumber = result.moveNumber || (lastMoveNumberRef.current + 1);
         console.log('[Frontend Move] Optimistically updating to move:', optimisticMoveNumber);
         console.log('[Frontend Move] Optimistic FEN:', result.fen);
+        console.log('[Frontend Move] Move ID:', result.moveId);
+        console.log('[Frontend Move] SAN:', result.san);
 
         lastMoveNumberRef.current = optimisticMoveNumber;
+
+        const optimisticMove: Move = {
+          id: result.moveId,
+          player_id: userId!,
+          move_number: optimisticMoveNumber,
+          move: result.san || result.move || '',
+          fen: result.fen,
+          created_at: new Date().toISOString(),
+        };
+
+        setMoves((prev) => [...prev, optimisticMove]);
+        console.log('[Frontend Move] ✓ Move added to history optimistically');
 
         setGame((prev) => {
           if (!prev) return prev;
@@ -358,10 +373,10 @@ export default function GamePage() {
           };
         });
 
-        console.log('[Frontend Move] Optimistic update complete, move number now:', optimisticMoveNumber);
+        console.log('[Frontend Move] ✓ Full optimistic update complete - FEN + moves + turn');
       }
 
-      console.log('[Frontend Move] Realtime will confirm when event arrives (but will be ignored if older)');
+      console.log('[Frontend Move] Realtime will confirm (duplicate will be filtered)');
 
       setMovingPiece(false);
       return true;
