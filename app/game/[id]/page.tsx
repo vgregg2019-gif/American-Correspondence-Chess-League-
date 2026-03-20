@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
@@ -52,6 +52,7 @@ export default function GamePage() {
   const [movingPiece, setMovingPiece] = useState(false);
   const [whiteTime, setWhiteTime] = useState(0);
   const [blackTime, setBlackTime] = useState(0);
+  const lastMoveNumberRef = useRef(0);
 
   const loadGame = useCallback(async () => {
     try {
@@ -120,6 +121,11 @@ export default function GamePage() {
 
       if (movesData) {
         setMoves(movesData);
+        const maxMoveNumber = movesData.length > 0
+          ? Math.max(...movesData.map(m => m.move_number))
+          : 0;
+        lastMoveNumberRef.current = maxMoveNumber;
+        console.log('[loadGame] Set lastMoveNumber to:', maxMoveNumber);
       }
 
       setLoading(false);
@@ -194,10 +200,24 @@ export default function GamePage() {
         async (payload) => {
           const newMove = payload.new as Move;
           console.log('[Realtime] Move INSERT received:', newMove);
+          console.log('[Realtime] New move number:', newMove.move_number);
           console.log('[Realtime] New move FEN:', newMove.fen);
-          console.log('[Realtime] New move player_id:', newMove.player_id);
+          console.log('[Realtime] Current lastMoveNumber:', lastMoveNumberRef.current);
+
+          if (newMove.move_number <= lastMoveNumberRef.current) {
+            console.log('[Realtime] ⚠️ Ignoring old/duplicate move event - already have move', newMove.move_number);
+            return;
+          }
+
+          console.log('[Realtime] ✓ Accepting new move:', newMove.move_number);
+          lastMoveNumberRef.current = newMove.move_number;
 
           setMoves((prev) => {
+            const exists = prev.some(m => m.id === newMove.id);
+            if (exists) {
+              console.log('[Realtime] Move already in list, skipping duplicate');
+              return prev;
+            }
             const updated = [...prev, newMove];
             console.log('[Realtime] Moves list updated, total moves:', updated.length);
             return updated;
@@ -220,40 +240,15 @@ export default function GamePage() {
                 current_fen: newMove.fen,
               };
 
-              console.log('[Realtime] Game state updated:', {
+              console.log('[Realtime] Game state updated from move INSERT:', {
+                move_number: newMove.move_number,
                 old_fen: prev.current_fen,
                 new_fen: updated.current_fen,
-                white_player_id: updated.white_player_id,
-                black_player_id: updated.black_player_id,
+                new_turn: newTurn,
               });
 
               return updated;
             });
-
-            console.log('[Realtime] Fetching latest game state as fallback...');
-            try {
-              const { data: latestGame } = await supabase
-                .from('games')
-                .select('id, current_fen, status, result, timeout_at')
-                .eq('id', gameId)
-                .maybeSingle();
-
-              if (latestGame) {
-                console.log('[Realtime] Fallback fetch successful, latest FEN:', latestGame.current_fen);
-                setGame((prev) => {
-                  if (!prev) return prev;
-                  return {
-                    ...prev,
-                    current_fen: latestGame.current_fen,
-                    status: latestGame.status,
-                    result: latestGame.result,
-                    timeout_at: latestGame.timeout_at,
-                  };
-                });
-              }
-            } catch (err) {
-              console.error('[Realtime] Fallback fetch failed:', err);
-            }
           }
         }
       )
@@ -347,7 +342,12 @@ export default function GamePage() {
       console.log('[Frontend Move] Move persisted, updating local state immediately');
 
       if (result.fen) {
-        console.log('[Frontend Move] Optimistically updating game FEN to:', result.fen);
+        const optimisticMoveNumber = lastMoveNumberRef.current + 1;
+        console.log('[Frontend Move] Optimistically updating to move:', optimisticMoveNumber);
+        console.log('[Frontend Move] Optimistic FEN:', result.fen);
+
+        lastMoveNumberRef.current = optimisticMoveNumber;
+
         setGame((prev) => {
           if (!prev) return prev;
           return {
@@ -357,9 +357,11 @@ export default function GamePage() {
             result: result.result || prev.result,
           };
         });
+
+        console.log('[Frontend Move] Optimistic update complete, move number now:', optimisticMoveNumber);
       }
 
-      console.log('[Frontend Move] Realtime will also update UI when event arrives');
+      console.log('[Frontend Move] Realtime will confirm when event arrives (but will be ignored if older)');
 
       setMovingPiece(false);
       return true;
