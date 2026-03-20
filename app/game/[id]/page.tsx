@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
+import { applyMove } from '@/lib/chessEngine';
 import ChessBoard from '@/components/ChessBoard';
 import GameTimer from '@/components/GameTimer';
 import MoveList from '@/components/MoveList';
@@ -261,34 +262,100 @@ export default function GamePage() {
   }, [gameId, game]);
 
   async function handleMove(from: string, to: string, promotion?: string): Promise<boolean> {
+    const dropTime = performance.now();
+    console.log('[⏱️ TIMING] Drop event at:', dropTime);
+
     if (!game || !userId || movingPiece) {
       console.log('Move blocked:', { hasGame: !!game, hasUserId: !!userId, movingPiece });
       return false;
     }
 
-    const { data: gameCheck } = await supabase
-      .from('games')
-      .select('id')
-      .eq('id', game.id)
-      .maybeSingle();
+    setMovingPiece(true);
 
-    if (!gameCheck) {
-      console.error('Game no longer exists, redirecting to dashboard');
-      alert('This game no longer exists. Redirecting to dashboard...');
-      router.replace('/dashboard');
+    if (!game.current_fen) {
+      console.error('[Frontend Move] ❌ No FEN position available');
+      setMovingPiece(false);
       return false;
     }
 
-    console.log('Attempting move:', { from, to, promotion, gameId: game.id });
+    const localValidationStart = performance.now();
+    console.log('[⏱️ TIMING] Starting local validation at:', localValidationStart - dropTime, 'ms after drop');
 
-    setMovingPiece(true);
+    const moveResult = applyMove({
+      fen: game.current_fen,
+      move: { from, to, promotion },
+    });
+
+    const localValidationEnd = performance.now();
+    console.log('[⏱️ TIMING] Local validation took:', localValidationEnd - localValidationStart, 'ms');
+
+    if (!moveResult.ok || !moveResult.fen || !moveResult.san) {
+      console.error('[Frontend Move] ❌ Illegal move:', moveResult.error);
+      alert(moveResult.error || 'Illegal move');
+      setMovingPiece(false);
+      return false;
+    }
+
+    console.log('[Frontend Move] ✓ Move validated locally:', moveResult.san);
+
+    const optimisticMoveNumber = lastMoveNumberRef.current + 1;
+    const tempMoveId = `temp-${Date.now()}`;
+
+    const previousFen = game.current_fen;
+    const previousMoves = moves;
+
+    const optimisticMove: Move = {
+      id: tempMoveId,
+      player_id: userId!,
+      move_number: optimisticMoveNumber,
+      move: moveResult.san,
+      fen: moveResult.fen,
+      created_at: new Date().toISOString(),
+    };
+
+    const immediateUpdateStart = performance.now();
+    console.log('[⏱️ TIMING] Applying immediate local update at:', immediateUpdateStart - dropTime, 'ms after drop');
+
+    lastMoveNumberRef.current = optimisticMoveNumber;
+    setMoves((prev) => [...prev, optimisticMove]);
+    setGame((prev) => {
+      if (!prev) return prev;
+
+      let newStatus: 'active' | 'finished' = prev.status;
+      let newResult: string | null = prev.result;
+
+      if (moveResult.isCheckmate) {
+        newStatus = 'finished';
+        newResult = prev.white_player_id === userId ? '1-0' : '0-1';
+      } else if (moveResult.isDraw || moveResult.isStalemate) {
+        newStatus = 'finished';
+        newResult = '1/2-1/2';
+      }
+
+      return {
+        ...prev,
+        current_fen: moveResult.fen!,
+        status: newStatus,
+        result: newResult,
+      };
+    });
+
+    const immediateUpdateEnd = performance.now();
+    console.log('[⏱️ TIMING] ✓ IMMEDIATE UPDATE COMPLETE at:', immediateUpdateEnd - dropTime, 'ms after drop');
+    console.log('[Frontend Move] ✓ Board updated instantly - piece on destination square');
+
+    const apiRequestStart = performance.now();
+    console.log('[⏱️ TIMING] Starting API request at:', apiRequestStart - dropTime, 'ms after drop');
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
-        console.error('No session found');
+        console.error('No session found - rolling back');
         alert('You must be logged in to make a move');
+        lastMoveNumberRef.current = optimisticMoveNumber - 1;
+        setMoves(previousMoves);
+        setGame((prev) => prev ? { ...prev, current_fen: previousFen } : prev);
         setMovingPiece(false);
         return false;
       }
@@ -301,88 +368,53 @@ export default function GamePage() {
         promotion,
       };
 
-      console.log('[Frontend Move] ===== SENDING MOVE REQUEST =====');
-      console.log('[Frontend Move] Session exists:', !!session);
-      console.log('[Frontend Move] Access token exists:', !!session.access_token);
-      console.log('[Frontend Move] Access token length:', session.access_token?.length || 0);
-      console.log('[Frontend Move] Access token (first 30 chars):', session.access_token?.substring(0, 30) + '...');
-      console.log('[Frontend Move] User ID:', session.user.id);
-      console.log('[Frontend Move] Move payload:', movePayload);
-
-      const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`
-      };
-
-      console.log('[Frontend Move] Request headers:', {
-        'Content-Type': headers['Content-Type'],
-        'Authorization': headers['Authorization']?.substring(0, 40) + '...'
-      });
-
       const response = await fetch('/api/move', {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: JSON.stringify(movePayload),
       });
 
+      const apiResponseTime = performance.now();
+      console.log('[⏱️ TIMING] API response received at:', apiResponseTime - dropTime, 'ms after drop');
+      console.log('[⏱️ TIMING] API round-trip took:', apiResponseTime - apiRequestStart, 'ms');
+
       const result = await response.json();
 
-      console.log('Move response:', { status: response.status, result });
-
       if (!response.ok) {
-        console.error('Move failed:', result.error);
-        alert(result.error || 'Invalid move');
+        console.error('[Frontend Move] ❌ Server rejected move - rolling back:', result.error);
+        alert(result.error || 'Move rejected by server');
+
+        lastMoveNumberRef.current = optimisticMoveNumber - 1;
+        setMoves(previousMoves);
+        setGame((prev) => prev ? { ...prev, current_fen: previousFen } : prev);
         setMovingPiece(false);
         return false;
       }
 
-      console.log('Move successful:', result);
-      console.log('[Move Response] Returned FEN:', result.fen);
-      console.log('[Move Response] Full response:', JSON.stringify(result, null, 2));
+      console.log('[Frontend Move] ✓ Server confirmed move');
+      console.log('[⏱️ TIMING] Total time from drop to server confirmation:', apiResponseTime - dropTime, 'ms');
 
-      console.log('[Frontend Move] Move persisted, updating local state immediately');
-
-      if (result.fen && result.moveId) {
-        const optimisticMoveNumber = result.moveNumber || (lastMoveNumberRef.current + 1);
-        console.log('[Frontend Move] Optimistically updating to move:', optimisticMoveNumber);
-        console.log('[Frontend Move] Optimistic FEN:', result.fen);
-        console.log('[Frontend Move] Move ID:', result.moveId);
-        console.log('[Frontend Move] SAN:', result.san);
-
-        lastMoveNumberRef.current = optimisticMoveNumber;
-
-        const optimisticMove: Move = {
-          id: result.moveId,
-          player_id: userId!,
-          move_number: optimisticMoveNumber,
-          move: result.san || result.move || '',
-          fen: result.fen,
-          created_at: new Date().toISOString(),
-        };
-
-        setMoves((prev) => [...prev, optimisticMove]);
-        console.log('[Frontend Move] ✓ Move added to history optimistically');
-
-        setGame((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            current_fen: result.fen,
-            status: result.status || prev.status,
-            result: result.result || prev.result,
-          };
-        });
-
-        console.log('[Frontend Move] ✓ Full optimistic update complete - FEN + moves + turn');
+      if (result.moveId && result.moveId !== tempMoveId) {
+        setMoves((prev) => prev.map(m =>
+          m.id === tempMoveId ? { ...m, id: result.moveId } : m
+        ));
+        console.log('[Frontend Move] ✓ Updated temp move ID to real ID:', result.moveId);
       }
-
-      console.log('[Frontend Move] Realtime will confirm (duplicate will be filtered)');
 
       setMovingPiece(false);
       return true;
     } catch (err) {
-      console.error('Move error:', err);
-      alert('Failed to submit move');
+      const errorTime = performance.now();
+      console.error('[⏱️ TIMING] Error occurred at:', errorTime - dropTime, 'ms after drop');
+      console.error('[Frontend Move] ❌ Network error - rolling back:', err);
+      alert('Failed to submit move - network error');
+
+      lastMoveNumberRef.current = optimisticMoveNumber - 1;
+      setMoves(previousMoves);
+      setGame((prev) => prev ? { ...prev, current_fen: previousFen } : prev);
       setMovingPiece(false);
       return false;
     }
