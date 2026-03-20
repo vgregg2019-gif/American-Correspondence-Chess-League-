@@ -28,7 +28,7 @@ export default function MoveList({ moves, whitePlayerId }: MoveListProps) {
 
   sortedMoves.forEach((move) => {
     const isWhite = move.player_id === whitePlayerId;
-    const moveIndex = Math.floor(move.move_number / 2);
+    const moveIndex = Math.floor((move.move_number - 1) / 2);
 
     if (!groupedMoves[moveIndex]) {
       groupedMoves[moveIndex] = { number: moveIndex + 1 };
