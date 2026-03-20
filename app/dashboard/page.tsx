@@ -17,7 +17,7 @@ interface Game {
   white_player_id: string;
   black_player_id: string;
   status: string;
-  turn: 'white' | 'black';
+  current_fen: string | null;
   white_time_remaining_seconds: number;
   black_time_remaining_seconds: number;
   last_move_at: string;
@@ -292,7 +292,11 @@ export default function DashboardPage() {
                 const blackPlayerData = Array.isArray(game.black_player) ? game.black_player[0] : game.black_player;
                 const opponent = isWhite ? blackPlayerData : whitePlayerData;
                 const myColor = isWhite ? 'white' : 'black';
-                const isMyTurn = game.turn === myColor;
+
+                const boardPosition = game.current_fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+                const fenTurn = boardPosition.split(' ')[1];
+                const currentTurn = fenTurn === 'w' ? 'white' : 'black';
+                const isMyTurn = currentTurn === myColor;
 
                 console.log('[Dashboard] Game card:', {
                   gameId: game.id,
@@ -301,13 +305,15 @@ export default function DashboardPage() {
                   black_player_id: game.black_player_id,
                   isWhite,
                   myColor,
-                  currentTurn: game.turn,
+                  boardPosition,
+                  fenTurn,
+                  currentTurn,
                   isMyTurn,
                   opponent,
                 });
 
                 const clock = calculateClock({
-                  turn: game.turn,
+                  turn: currentTurn,
                   white_time_remaining_seconds: game.white_time_remaining_seconds,
                   black_time_remaining_seconds: game.black_time_remaining_seconds,
                   last_move_at: game.last_move_at,
