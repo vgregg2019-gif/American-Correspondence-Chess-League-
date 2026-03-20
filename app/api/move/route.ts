@@ -7,12 +7,24 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    console.log('[Move API] Processing move request');
+    console.log('[Move API] ===== NEW REQUEST RECEIVED =====');
+    console.log('[Move API] Request method:', req.method);
+    console.log('[Move API] Request URL:', req.url);
+
+    console.log('[Move API] All headers:');
+    req.headers.forEach((value, key) => {
+      if (key.toLowerCase() === 'authorization') {
+        console.log(`[Move API]   ${key}: ${value.substring(0, 40)}...`);
+      } else {
+        console.log(`[Move API]   ${key}: ${value}`);
+      }
+    });
 
     const authHeader = req.headers.get('authorization');
     console.log('[Move API] ===== AUTH CHECK =====');
     console.log('[Move API] Authorization header present:', !!authHeader);
-    console.log('[Move API] Authorization header value (first 20 chars):', authHeader ? authHeader.substring(0, 20) + '...' : 'N/A');
+    console.log('[Move API] Authorization header value (first 40 chars):', authHeader ? authHeader.substring(0, 40) + '...' : 'N/A');
+    console.log('[Move API] Authorization header full length:', authHeader?.length || 0);
 
     if (!authHeader) {
       return NextResponse.json({

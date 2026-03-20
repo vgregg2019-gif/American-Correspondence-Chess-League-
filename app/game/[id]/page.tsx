@@ -228,14 +228,27 @@ export default function GamePage() {
         promotion,
       };
 
-      console.log('Sending move request:', movePayload);
+      console.log('[Frontend Move] ===== SENDING MOVE REQUEST =====');
+      console.log('[Frontend Move] Session exists:', !!session);
+      console.log('[Frontend Move] Access token exists:', !!session.access_token);
+      console.log('[Frontend Move] Access token length:', session.access_token?.length || 0);
+      console.log('[Frontend Move] Access token (first 30 chars):', session.access_token?.substring(0, 30) + '...');
+      console.log('[Frontend Move] User ID:', session.user.id);
+      console.log('[Frontend Move] Move payload:', movePayload);
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      };
+
+      console.log('[Frontend Move] Request headers:', {
+        'Content-Type': headers['Content-Type'],
+        'Authorization': headers['Authorization']?.substring(0, 40) + '...'
+      });
 
       const response = await fetch('/api/move', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
+        headers,
         body: JSON.stringify(movePayload),
       });
 
