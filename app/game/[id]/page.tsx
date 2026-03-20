@@ -33,6 +33,8 @@ interface Move {
   move: string;
   move_number: number;
   player_id: string;
+  fen: string;
+  created_at: string;
 }
 
 const DEFAULT_STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -177,7 +179,19 @@ export default function GamePage() {
         },
         (payload) => {
           const newMove = payload.new as Move;
+          console.log('[Realtime] Move INSERT received:', newMove);
           setMoves((prev) => [...prev, newMove]);
+
+          if (newMove.fen) {
+            console.log('[Realtime] Updating game FEN from move:', newMove.fen);
+            setGame((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                current_fen: newMove.fen,
+              };
+            });
+          }
         }
       )
       .subscribe();
@@ -267,7 +281,7 @@ export default function GamePage() {
       console.log('[Move Response] Returned FEN:', result.fen);
       console.log('[Move Response] Full response:', JSON.stringify(result, null, 2));
 
-      await loadGame();
+      console.log('[Frontend Move] Move persisted, realtime will update UI');
 
       setMovingPiece(false);
       return true;

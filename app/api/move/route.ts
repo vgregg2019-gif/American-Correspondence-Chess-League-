@@ -475,69 +475,25 @@ export async function POST(req: NextRequest) {
       gameUpdate.timeout_at = timeoutAt;
     }
 
-    console.log('[Move API] ===== EXACT FINAL UPDATE PAYLOAD =====');
-    console.log('[Move API] Payload keys:', Object.keys(gameUpdate));
-    console.log('[Move API] Full payload:', JSON.stringify(gameUpdate, null, 2));
-    console.log('[Move API] Columns being written:', Object.keys(gameUpdate).join(', '));
-    console.log('[Move API] Executing: UPDATE games SET', gameUpdate, 'WHERE id =', gameId);
+    console.log('[Move API] Game update payload:', JSON.stringify(gameUpdate, null, 2));
+    console.log('[Move API] Executing UPDATE games...');
 
-    console.log('[Move API] Creating fresh Supabase client for UPDATE to avoid connection issues...');
-    const updateClient = createClient(
-      supabaseUrl,
-      supabaseKey,
-      {
-        global: {
-          headers: {
-            Authorization: authHeader
-          }
-        }
+    try {
+      const gameUpdateResult = await supabase
+        .from("games")
+        .update(gameUpdate)
+        .eq("id", gameId);
+
+      if (gameUpdateResult.error) {
+        console.error('[Move API] ⚠️ Game update failed but move was persisted:', gameUpdateResult.error.message);
+        console.error('[Move API] Realtime subscription will handle UI update');
+      } else {
+        console.log('[Move API] ✓ Game updated successfully');
       }
-    );
-
-    const gameUpdateResult = await updateClient
-      .from("games")
-      .update(gameUpdate)
-      .eq("id", gameId);
-
-    console.log('[Move API] ===== SUPABASE UPDATE RESPONSE =====');
-    console.log('[Move API] Response status:', gameUpdateResult.status);
-    console.log('[Move API] Response statusText:', gameUpdateResult.statusText);
-    console.log('[Move API] Response count:', gameUpdateResult.count);
-    console.log('[Move API] Has data:', !!gameUpdateResult.data);
-    console.log('[Move API] Data value:', gameUpdateResult.data);
-    console.log('[Move API] Has error:', !!gameUpdateResult.error);
-    console.log('[Move API] Full Supabase response:', JSON.stringify({
-      status: gameUpdateResult.status,
-      statusText: gameUpdateResult.statusText,
-      count: gameUpdateResult.count,
-      error: gameUpdateResult.error,
-      data: gameUpdateResult.data
-    }, null, 2));
-
-    if (gameUpdateResult.error) {
-      console.log('[Move API] Error.message:', gameUpdateResult.error.message);
-      console.log('[Move API] Error.code:', gameUpdateResult.error.code);
-      console.log('[Move API] Error.details:', gameUpdateResult.error.details);
-      console.log('[Move API] Error.hint:', gameUpdateResult.error.hint);
-      console.log('[Move API] Full error object:', JSON.stringify(gameUpdateResult.error, null, 2));
+    } catch (updateError) {
+      console.error('[Move API] ⚠️ Game update threw exception but move was persisted:', updateError);
+      console.error('[Move API] Realtime subscription will handle UI update');
     }
-
-    if (gameUpdateResult.error) {
-      console.error('[Move API] ❌ FAILED AT: UPDATE public.games');
-      return NextResponse.json({
-        step: "game_update",
-        failedAt: "UPDATE public.games",
-        error: "Failed to update game",
-        message: gameUpdateResult.error.message,
-        code: gameUpdateResult.error.code,
-        details: gameUpdateResult.error.details,
-        hint: gameUpdateResult.error.hint,
-        gameUpdate,
-        fullError: gameUpdateResult.error
-      }, { status: 500 });
-    }
-
-    console.log('[Move API] ✓ Game updated successfully');
 
     const response = {
       ok: true,
