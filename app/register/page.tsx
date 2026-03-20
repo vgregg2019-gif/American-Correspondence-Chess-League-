@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
@@ -12,6 +12,10 @@ export default function RegisterPage() {
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    console.log('REGISTER BUILD CHECK LOADED');
+  }, []);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,6 +123,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="card">
+          <div className="text-xs text-yellow-400 mb-2">REGISTER BUILD CHECK</div>
           <h2 className="text-2xl font-semibold mb-6 text-center">Create Account</h2>
 
           {error && (
