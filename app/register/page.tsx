@@ -83,18 +83,17 @@ export default function RegisterPage() {
       }
 
       if (data.user) {
-        console.log('[Register] Creating profile for user:', data.user.id);
+        console.log('[Register] Updating profile username for user:', data.user.id);
         const { error: profileError } = await supabase
           .from('profiles')
-          .insert({
-            id: data.user.id,
-            username: username,
-            rating: 1200,
-          });
+          .update({
+            username: username
+          })
+          .eq('id', data.user.id);
 
         if (profileError) {
-          console.error('[Register] Profile creation error:', profileError);
-          setError('Failed to create profile');
+          console.error('[Register] Profile update error:', profileError);
+          setError('Failed to update profile');
           setLoading(false);
           return;
         }
