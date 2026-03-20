@@ -166,6 +166,9 @@ export async function POST(req: NextRequest) {
         result,
         time_control,
         timeout_at,
+        white_time_remaining_seconds,
+        black_time_remaining_seconds,
+        last_move_at,
         created_at
       `;
 
@@ -247,9 +250,13 @@ export async function POST(req: NextRequest) {
       }, { status: 404 });
     }
 
+    console.log('[Move API] ===== TIMER STATE BEFORE MOVE =====');
     console.log('[Move API] Time values from database:', {
       time_control: game.time_control,
       timeout_at: game.timeout_at,
+      white_time_remaining_seconds: game.white_time_remaining_seconds,
+      black_time_remaining_seconds: game.black_time_remaining_seconds,
+      last_move_at: game.last_move_at,
     });
 
     if (game.status !== "active") {
@@ -371,9 +378,46 @@ export async function POST(req: NextRequest) {
 
     const nextTurn: 'white' | 'black' = playerColor === "white" ? "black" : "white";
 
+    console.log('[Move API] ===== TIMER CALCULATION =====');
+    const clockBefore = calculateClock({
+      turn: currentTurn,
+      white_time_remaining_seconds: game.white_time_remaining_seconds,
+      black_time_remaining_seconds: game.black_time_remaining_seconds,
+      last_move_at: game.last_move_at,
+    }, new Date());
+
+    console.log('[Move API] Clock state before move:', {
+      moving_player: playerColor,
+      white_remaining_before: clockBefore.whiteRemaining,
+      black_remaining_before: clockBefore.blackRemaining,
+      active_color: clockBefore.activeColor,
+    });
+
+    const updatedWhiteTime = clockBefore.whiteRemaining;
+    const updatedBlackTime = clockBefore.blackRemaining;
+
+    console.log('[Move API] Timer handoff:', {
+      moving_player: playerColor,
+      stopped_timer: `${playerColor}_time`,
+      white_time_after_move: updatedWhiteTime,
+      black_time_after_move: updatedBlackTime,
+      next_turn: nextTurn,
+      next_active_timer: `${nextTurn}_time`,
+    });
+
     let status: 'active' | 'finished' = "active";
     let resultString: string | null = null;
-    let timeoutAt: string | null = new Date(Date.now() + 172800 * 1000).toISOString();
+    let timeoutAt: string | null = getNextTimeoutAt(
+      nextTurn,
+      updatedWhiteTime,
+      updatedBlackTime,
+      new Date()
+    );
+
+    console.log('[Move API] Next timeout calculated:', {
+      next_turn: nextTurn,
+      timeout_at: timeoutAt,
+    });
 
     if (moveResult.isCheckmate) {
       status = "finished";
@@ -465,6 +509,9 @@ export async function POST(req: NextRequest) {
     const gameUpdate: any = {
       current_fen: moveResult.fen,
       status,
+      white_time_remaining_seconds: updatedWhiteTime,
+      black_time_remaining_seconds: updatedBlackTime,
+      last_move_at: nowIso,
     };
 
     if (resultString) {
@@ -475,7 +522,14 @@ export async function POST(req: NextRequest) {
       gameUpdate.timeout_at = timeoutAt;
     }
 
+    console.log('[Move API] ===== PERSISTING TIMER STATE =====');
     console.log('[Move API] Game update payload:', JSON.stringify(gameUpdate, null, 2));
+    console.log('[Move API] Timer state to persist:', {
+      white_time_remaining_seconds: updatedWhiteTime,
+      black_time_remaining_seconds: updatedBlackTime,
+      last_move_at: nowIso,
+      timeout_at: timeoutAt,
+    });
     console.log('[Move API] Executing UPDATE games...');
 
     try {

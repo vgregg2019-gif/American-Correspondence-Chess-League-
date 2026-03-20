@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { applyMove } from '@/lib/chessEngine';
+import { calculateClock } from '@/lib/timeControl';
 import ChessBoard from '@/components/ChessBoard';
 import GameTimer from '@/components/GameTimer';
 import MoveList from '@/components/MoveList';
@@ -24,6 +25,9 @@ interface Game {
   result: string | null;
   time_control: string | null;
   timeout_at: string | null;
+  white_time_remaining_seconds: number;
+  black_time_remaining_seconds: number;
+  last_move_at: string;
   created_at: string;
   white_player: Profile | Profile[];
   black_player: Profile | Profile[];
@@ -71,7 +75,18 @@ export default function GamePage() {
       const { data: gameData, error: gameError } = await supabase
         .from('games')
         .select(`
-          *,
+          id,
+          white_player_id,
+          black_player_id,
+          current_fen,
+          status,
+          result,
+          time_control,
+          timeout_at,
+          white_time_remaining_seconds,
+          black_time_remaining_seconds,
+          last_move_at,
+          created_at,
           white_player:white_player_id(id, username, rating),
           black_player:black_player_id(id, username, rating)
         `)
@@ -105,11 +120,38 @@ export default function GamePage() {
       }
 
       console.log('[loadGame] Setting game state with FEN:', gameData.current_fen);
-      setGame(gameData);
 
-      console.log('[Timer] Initial time set to 48 hours (172800 seconds)');
-      setWhiteTime(172800);
-      setBlackTime(172800);
+      console.log('[Timer] ===== TIMER RECONSTRUCTION ON PAGE LOAD =====');
+      console.log('[Timer] Raw values from database:', {
+        white_time_remaining_seconds: gameData.white_time_remaining_seconds,
+        black_time_remaining_seconds: gameData.black_time_remaining_seconds,
+        last_move_at: gameData.last_move_at,
+        current_fen: gameData.current_fen,
+      });
+
+      const fenTurn = gameData.current_fen?.split(' ')[1];
+      const currentTurn = fenTurn === 'w' ? 'white' : 'black';
+
+      const clockState = calculateClock({
+        turn: currentTurn,
+        white_time_remaining_seconds: gameData.white_time_remaining_seconds,
+        black_time_remaining_seconds: gameData.black_time_remaining_seconds,
+        last_move_at: gameData.last_move_at,
+      }, new Date());
+
+      console.log('[Timer] Calculated clock state:', {
+        current_turn: currentTurn,
+        white_remaining: clockState.whiteRemaining,
+        black_remaining: clockState.blackRemaining,
+        active_color: clockState.activeColor,
+        timed_out: clockState.timedOut,
+      });
+
+      setGame(gameData);
+      setWhiteTime(clockState.whiteRemaining);
+      setBlackTime(clockState.blackRemaining);
+
+      console.log('[Timer] ✓ Timers set from authoritative game state');
 
       const { data: movesData, error: movesError } = await supabase
         .from('moves')
@@ -157,10 +199,15 @@ export default function GamePage() {
         (payload) => {
           const updatedGame = payload.new as any;
 
-          console.log('[Realtime] Game UPDATE received:', updatedGame);
+          console.log('[Realtime] ===== GAME UPDATE RECEIVED =====');
           console.log('[Realtime] Updated FEN:', updatedGame.current_fen);
           console.log('[Realtime] Updated status:', updatedGame.status);
           console.log('[Realtime] Updated result:', updatedGame.result);
+          console.log('[Realtime] Updated timer state:', {
+            white_time_remaining_seconds: updatedGame.white_time_remaining_seconds,
+            black_time_remaining_seconds: updatedGame.black_time_remaining_seconds,
+            last_move_at: updatedGame.last_move_at,
+          });
 
           setGame((prev) => {
             if (!prev) {
@@ -177,6 +224,22 @@ export default function GamePage() {
 
             const fenParts = merged.current_fen?.split(' ') || [];
             const turn = fenParts[1] === 'w' ? 'white' : 'black';
+
+            const clockState = calculateClock({
+              turn,
+              white_time_remaining_seconds: merged.white_time_remaining_seconds,
+              black_time_remaining_seconds: merged.black_time_remaining_seconds,
+              last_move_at: merged.last_move_at,
+            }, new Date());
+
+            console.log('[Realtime] Recalculated timer state:', {
+              white_remaining: clockState.whiteRemaining,
+              black_remaining: clockState.blackRemaining,
+              active_color: clockState.activeColor,
+            });
+
+            setWhiteTime(clockState.whiteRemaining);
+            setBlackTime(clockState.blackRemaining);
 
             console.log('[Realtime] Game UPDATE applied:', {
               old_fen: prev.current_fen,
