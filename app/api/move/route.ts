@@ -471,13 +471,30 @@ export async function POST(req: NextRequest) {
       gameUpdate.result = resultString;
     }
 
+    if (timeoutAt !== null) {
+      gameUpdate.timeout_at = timeoutAt;
+    }
+
     console.log('[Move API] ===== EXACT FINAL UPDATE PAYLOAD =====');
     console.log('[Move API] Payload keys:', Object.keys(gameUpdate));
     console.log('[Move API] Full payload:', JSON.stringify(gameUpdate, null, 2));
     console.log('[Move API] Columns being written:', Object.keys(gameUpdate).join(', '));
     console.log('[Move API] Executing: UPDATE games SET', gameUpdate, 'WHERE id =', gameId);
 
-    const gameUpdateResult = await supabase
+    console.log('[Move API] Creating fresh Supabase client for UPDATE to avoid connection issues...');
+    const updateClient = createClient(
+      supabaseUrl,
+      supabaseKey,
+      {
+        global: {
+          headers: {
+            Authorization: authHeader
+          }
+        }
+      }
+    );
+
+    const gameUpdateResult = await updateClient
       .from("games")
       .update(gameUpdate)
       .eq("id", gameId);
