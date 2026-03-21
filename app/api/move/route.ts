@@ -200,16 +200,15 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('[Move API] ===== PLAYER AUTHORIZATION CHECK =====');
-    console.log('[Move API] Authenticated user.id from cookies:', user.id);
-    console.log('[Move API] playerId from request body:', playerId);
-    console.log('[Move API] game.white_player_id from database:', game.white_player_id);
-    console.log('[Move API] game.black_player_id from database:', game.black_player_id);
-    console.log('[Move API] user.id === playerId:', user.id === playerId);
-    console.log('[Move API] user.id === white_player_id:', user.id === game.white_player_id);
-    console.log('[Move API] user.id === black_player_id:', user.id === game.black_player_id);
-    console.log('[Move API] playerId === white_player_id:', playerId === game.white_player_id);
-    console.log('[Move API] playerId === black_player_id:', playerId === game.black_player_id);
+    console.log('[Move API] ===== AUTHORIZATION VALUES =====');
+    console.log('authenticated user.id        :', user.id);
+    console.log('request body playerId        :', playerId);
+    console.log('game.white_player_id         :', game.white_player_id);
+    console.log('game.black_player_id         :', game.black_player_id);
+    console.log('');
+    console.log('user.id === playerId         :', user.id === playerId, user.id === playerId ? '✓' : '✗ MISMATCH');
+    console.log('playerId === white_player_id :', playerId === game.white_player_id, playerId === game.white_player_id ? '✓' : '✗ MISMATCH');
+    console.log('playerId === black_player_id :', playerId === game.black_player_id, playerId === game.black_player_id ? '✓' : '✗ MISMATCH');
 
     const isWhite = game.white_player_id === playerId;
     const isBlack = game.black_player_id === playerId;
