@@ -6,10 +6,21 @@ import { createServerClient } from "@/lib/supabaseServer";
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  console.log('[Move API] HIT /api/move route');
+
   try {
     console.log('[Move API] ===== NEW REQUEST RECEIVED =====');
     console.log('[Move API] Request method:', req.method);
     console.log('[Move API] Request URL:', req.url);
+
+    const body = await req.json();
+    const { gameId, playerId, from, to, promotion } = body;
+
+    console.log('[Move API] ===== REQUEST BODY PARSED =====');
+    console.log('[Move API] gameId:', gameId);
+    console.log('[Move API] playerId:', playerId);
+    console.log('[Move API] from:', from);
+    console.log('[Move API] to:', to);
 
     console.log('[Move API] ===== AUTH CHECK (using cookies) =====');
 
@@ -59,11 +70,6 @@ export async function POST(req: NextRequest) {
 
     console.log('[Move API] ✓ Authenticated user ID:', user.id);
     console.log('[Move API] ✓ User email:', user.email);
-
-    const body = await req.json();
-    const { gameId, playerId, from, to, promotion } = body;
-
-    console.log('[Move API] Request body:', { gameId, playerId, from, to, promotion });
 
     if (user.id !== playerId) {
       return NextResponse.json({
