@@ -55,6 +55,15 @@ export async function POST(req: NextRequest) {
       console.error('[Move API] authError:', JSON.stringify(authError, null, 2));
       console.error('[Move API] user:', user);
       console.error('[Move API] This means cookies are not being sent or session is invalid');
+
+      // Fetch game data without auth to get player IDs for debugging
+      const supabaseAdmin = await createServerClient();
+      const { data: gameDebug } = await supabaseAdmin
+        .from("games")
+        .select("white_player_id, black_player_id")
+        .eq("id", gameId)
+        .maybeSingle();
+
       return NextResponse.json({
         step: "auth",
         error: "Invalid authorization",
@@ -63,7 +72,19 @@ export async function POST(req: NextRequest) {
           hasError: !!authError,
           hasUser: !!user,
           errorMessage: authError?.message,
-          errorStatus: authError?.status
+          errorStatus: authError?.status,
+          // DEBUG VALUES
+          authenticated_user_id: user?.id || null,
+          request_body_playerId: playerId,
+          game_white_player_id: gameDebug?.white_player_id || null,
+          game_black_player_id: gameDebug?.black_player_id || null,
+          comparisons: {
+            user_id_equals_playerId: user?.id === playerId,
+            user_id_equals_white: user?.id === gameDebug?.white_player_id,
+            user_id_equals_black: user?.id === gameDebug?.black_player_id,
+            playerId_equals_white: playerId === gameDebug?.white_player_id,
+            playerId_equals_black: playerId === gameDebug?.black_player_id,
+          }
         }
       }, { status: 401 });
     }
