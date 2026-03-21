@@ -56,6 +56,14 @@ export async function POST(req: NextRequest) {
       console.error('[Move API] user:', user);
       console.error('[Move API] This means cookies are not being sent or session is invalid');
 
+      // DEBUG: Get all cookies to see what's being sent
+      const allCookies = req.cookies.getAll();
+      const cookieDebug = allCookies.map(c => ({
+        name: c.name,
+        valueLength: c.value?.length,
+        hasAuthPrefix: c.name.startsWith('sb-'),
+      }));
+
       // Fetch game data without auth to get player IDs for debugging
       const supabaseAdmin = await createServerClient();
       const { data: gameDebug } = await supabaseAdmin
@@ -73,6 +81,9 @@ export async function POST(req: NextRequest) {
           hasUser: !!user,
           errorMessage: authError?.message,
           errorStatus: authError?.status,
+          // COOKIE DEBUG
+          cookies_received: cookieDebug,
+          cookie_count: allCookies.length,
           // DEBUG VALUES
           authenticated_user_id: user?.id || null,
           request_body_playerId: playerId,
