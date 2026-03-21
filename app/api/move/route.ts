@@ -24,6 +24,12 @@ export async function POST(req: NextRequest) {
 
     console.log('[Move API] ===== AUTH CHECK (using cookies) =====');
 
+    // Log server environment Supabase config
+    const serverSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serverSupabaseProjectRef = serverSupabaseUrl?.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1];
+    console.log('[Move API] Server NEXT_PUBLIC_SUPABASE_URL:', serverSupabaseUrl);
+    console.log('[Move API] Server Supabase project ref:', serverSupabaseProjectRef);
+
     // Log all cookies received
     const cookieHeader = req.headers.get('cookie');
     console.log('[Move API] Cookie header present:', !!cookieHeader);
@@ -31,6 +37,12 @@ export async function POST(req: NextRequest) {
     if (cookieHeader) {
       const cookieNames = cookieHeader.split(';').map(c => c.trim().split('=')[0]);
       console.log('[Move API] Cookie names:', cookieNames);
+
+      // Extract Supabase project ref from cookie names
+      const supabaseCookie = cookieNames.find(name => name.startsWith('sb-') && name.includes('-auth-token'));
+      const cookieProjectRef = supabaseCookie?.match(/sb-([^-]+)-auth-token/)?.[1];
+      console.log('[Move API] Cookie Supabase project ref:', cookieProjectRef);
+      console.log('[Move API] PROJECT REF MATCH:', serverSupabaseProjectRef === cookieProjectRef ? '✓ MATCH' : '✗ MISMATCH');
     }
 
     // Create Supabase client directly from request cookies (Netlify/Bolt compatible)
@@ -79,6 +91,10 @@ export async function POST(req: NextRequest) {
         hasAuthPrefix: c.name.startsWith('sb-'),
       }));
 
+      // Extract Supabase project ref from cookie names
+      const supabaseCookie = allCookies.find(c => c.name.startsWith('sb-') && c.name.includes('-auth-token'));
+      const cookieProjectRef = supabaseCookie?.name.match(/sb-([^-]+)-auth-token/)?.[1];
+
       // Fetch game data without auth to get player IDs for debugging
       const { data: gameDebug } = await supabase
         .from("games")
@@ -96,6 +112,11 @@ export async function POST(req: NextRequest) {
           hasUser: !!user,
           errorMessage: authError?.message,
           errorStatus: authError?.status,
+          // PROJECT REF COMPARISON
+          server_supabase_url: serverSupabaseUrl,
+          server_project_ref: serverSupabaseProjectRef,
+          cookie_project_ref: cookieProjectRef,
+          project_ref_match: serverSupabaseProjectRef === cookieProjectRef,
           // COOKIE DEBUG
           cookies_received: cookieDebug,
           cookie_count: allCookies.length,
