@@ -8,10 +8,6 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   console.log('[Move API] HIT /api/move route');
 
-  // DEPLOYMENT TEST MARKER - REMOVE AFTER CONFIRMING LIVE DEPLOYMENT
-  return NextResponse.json({ marker: "LIVE_MOVE_ROUTE_V1", timestamp: new Date().toISOString() }, { status: 418 });
-
-  /* TEMPORARILY COMMENTED OUT FOR DEPLOYMENT TEST
   try {
     console.log('[Move API] ===== NEW REQUEST RECEIVED =====');
     console.log('[Move API] Request method:', req.method);
@@ -110,7 +106,7 @@ export async function POST(req: NextRequest) {
         step: "auth",
         error: "Invalid authorization",
         message: authError?.message || "Could not verify user from cookies. Session may be expired or cookies not sent.",
-        marker: "COOKIE_DEBUG_V15",
+        marker: "AUTH_DEBUG_V2",
         debug: {
           hasError: !!authError,
           hasUser: !!user,
@@ -621,5 +617,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-  */
 }
