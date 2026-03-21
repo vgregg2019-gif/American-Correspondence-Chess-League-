@@ -11,35 +11,10 @@ export async function POST(req: NextRequest) {
     console.log('[Move API] Request method:', req.method);
     console.log('[Move API] Request URL:', req.url);
 
-    console.log('[Move API] All headers:');
-    req.headers.forEach((value, key) => {
-      if (key.toLowerCase() === 'authorization') {
-        console.log(`[Move API]   ${key}: ${value.substring(0, 40)}...`);
-      } else {
-        console.log(`[Move API]   ${key}: ${value}`);
-      }
-    });
+    console.log('[Move API] ===== AUTH CHECK (using cookies) =====');
+    const supabase = createServerClient();
 
-    const authHeader = req.headers.get('authorization');
-    console.log('[Move API] ===== AUTH CHECK =====');
-    console.log('[Move API] Authorization header present:', !!authHeader);
-    console.log('[Move API] Authorization header value (first 40 chars):', authHeader ? authHeader.substring(0, 40) + '...' : 'N/A');
-    console.log('[Move API] Authorization header full length:', authHeader?.length || 0);
-
-    if (!authHeader) {
-      return NextResponse.json({
-        step: "auth",
-        error: "Missing authorization",
-        message: "Authorization header is required"
-      }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    console.log('[Move API] Token extracted (first 20 chars):', token.substring(0, 20) + '...');
-
-    const supabase = createServerClient(token);
-
-    console.log('[Move API] Verifying user from token...');
+    console.log('[Move API] Getting authenticated user from cookies...');
     const authResult = await supabase.auth.getUser();
     const { data: { user }, error: authError } = authResult;
 
@@ -88,43 +63,9 @@ export async function POST(req: NextRequest) {
 
     console.log('[Move API] ===== GAME FETCH =====');
     console.log('[Move API] Game ID to fetch:', gameId);
-
-    console.log('[Move API] Using service role key:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
-    console.log('[Move API] Using anon key:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-    console.log('[Move API] Auth method: Bearer token from frontend (anon key + user token)');
+    console.log('[Move API] Auth method: Cookie-based session');
     console.log('[Move API] Auth context in client:', user.id);
-    console.log('[Move API] RLS will be enforced: YES (using anon key with user auth)');
-
-    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      const adminClient = createServerClient();
-
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-      const { createClient } = await import('@supabase/supabase-js');
-      const adminClientWithServiceRole = createClient(supabaseUrl, serviceRoleKey);
-
-      const { data: adminGameCheck } = await adminClientWithServiceRole
-        .from("games")
-        .select("id, white_player_id, black_player_id, status")
-        .eq("id", gameId)
-        .maybeSingle();
-
-      console.log('[Move API] 🔍 Admin check (bypasses RLS):', {
-        gameExists: !!adminGameCheck,
-        gameId: adminGameCheck?.id,
-        whitePlayerId: adminGameCheck?.white_player_id,
-        blackPlayerId: adminGameCheck?.black_player_id,
-        status: adminGameCheck?.status,
-        userIsWhite: adminGameCheck?.white_player_id === user.id,
-        userIsBlack: adminGameCheck?.black_player_id === user.id,
-        userShouldHaveAccess: adminGameCheck ?
-          (adminGameCheck.white_player_id === user.id || adminGameCheck.black_player_id === user.id) :
-          false,
-      });
-    } else {
-      console.log('[Move API] ⚠️  No service role key available - skipping admin check');
-    }
+    console.log('[Move API] RLS will be enforced: YES (using cookie session)');
 
     const selectQuery = `
         id,

@@ -430,13 +430,12 @@ export default function GamePage() {
     console.log('[⏱️ TIMING] Starting API request at:', apiRequestStart - dropTime, 'ms after drop');
 
     try {
-      console.log('[Frontend Move] Getting session for API call...');
+      console.log('[Frontend Move] Checking session...');
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       console.log('[Frontend Move] Session check:', {
         hasSession: !!session,
         hasError: !!sessionError,
-        hasAccessToken: !!session?.access_token,
         userId: session?.user?.id,
         error: sessionError
       });
@@ -451,8 +450,8 @@ export default function GamePage() {
         return false;
       }
 
-      if (!session || !session.access_token) {
-        console.error('[Frontend Move] No session or access token found');
+      if (!session) {
+        console.error('[Frontend Move] No session found');
         alert('You must be logged in to make a move. Please log in again.');
         lastMoveNumberRef.current = optimisticMoveNumber - 1;
         setMoves(previousMoves);
@@ -462,7 +461,7 @@ export default function GamePage() {
         return false;
       }
 
-      console.log('[Frontend Move] ✓ Session valid, access_token length:', session.access_token.length);
+      console.log('[Frontend Move] ✓ Session valid');
 
       const movePayload = {
         gameId: game.id,
@@ -473,15 +472,15 @@ export default function GamePage() {
       };
 
       console.log('[Frontend Move] Calling API with payload:', movePayload);
-      console.log('[Frontend Move] Authorization header:', `Bearer ${session.access_token.substring(0, 20)}...`);
+      console.log('[Frontend Move] Using cookie-based authentication');
 
       const response = await fetch('/api/move', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify(movePayload),
+        credentials: 'include',
       });
 
       const apiResponseTime = performance.now();
