@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     const supabase = createServerClient(token);
 
     console.log('[Move API] Verifying user from token...');
-    const authResult = await supabase.auth.getUser(token);
+    const authResult = await supabase.auth.getUser();
     const { data: { user }, error: authError } = authResult;
 
     console.log('[Move API] auth.getUser() result:', {
