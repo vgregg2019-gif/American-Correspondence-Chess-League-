@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
         step: "auth",
         error: "Invalid authorization",
         message: authError?.message || "Could not verify user from cookies. Session may be expired or cookies not sent.",
+        marker: "COOKIE_DEBUG_V15",
         debug: {
           hasError: !!authError,
           hasUser: !!user,
