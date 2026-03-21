@@ -12,6 +12,16 @@ export async function POST(req: NextRequest) {
     console.log('[Move API] Request URL:', req.url);
 
     console.log('[Move API] ===== AUTH CHECK (using cookies) =====');
+
+    // Log all cookies received
+    const cookieHeader = req.headers.get('cookie');
+    console.log('[Move API] Cookie header present:', !!cookieHeader);
+    console.log('[Move API] Cookie header length:', cookieHeader?.length || 0);
+    if (cookieHeader) {
+      const cookieNames = cookieHeader.split(';').map(c => c.trim().split('=')[0]);
+      console.log('[Move API] Cookie names:', cookieNames);
+    }
+
     const supabase = await createServerClient();
 
     console.log('[Move API] Getting authenticated user from cookies...');
