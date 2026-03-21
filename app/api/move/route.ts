@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     console.log('[Move API] Request URL:', req.url);
 
     console.log('[Move API] ===== AUTH CHECK (using cookies) =====');
-    const supabase = createServerClient();
+    const supabase = await createServerClient();
 
     console.log('[Move API] Getting authenticated user from cookies...');
     const authResult = await supabase.auth.getUser();
@@ -25,18 +25,30 @@ export async function POST(req: NextRequest) {
       hasError: !!authError,
       errorMessage: authError?.message,
       errorStatus: authError?.status,
+      errorName: authError?.name,
+      fullAuthResult: JSON.stringify({ user: user ? { id: user.id, email: user.email } : null, error: authError }, null, 2)
     });
 
     if (authError || !user) {
-      console.error('[Move API] Auth verification failed:', authError);
+      console.error('[Move API] ❌ Auth verification failed');
+      console.error('[Move API] authError:', JSON.stringify(authError, null, 2));
+      console.error('[Move API] user:', user);
+      console.error('[Move API] This means cookies are not being sent or session is invalid');
       return NextResponse.json({
         step: "auth",
         error: "Invalid authorization",
-        message: authError?.message || "Could not verify user token"
+        message: authError?.message || "Could not verify user from cookies. Session may be expired or cookies not sent.",
+        debug: {
+          hasError: !!authError,
+          hasUser: !!user,
+          errorMessage: authError?.message,
+          errorStatus: authError?.status
+        }
       }, { status: 401 });
     }
 
     console.log('[Move API] ✓ Authenticated user ID:', user.id);
+    console.log('[Move API] ✓ User email:', user.email);
 
     const body = await req.json();
     const { gameId, playerId, from, to, promotion } = body;
@@ -178,26 +190,49 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
+    console.log('[Move API] ===== PLAYER AUTHORIZATION CHECK =====');
+    console.log('[Move API] Authenticated user.id from cookies:', user.id);
+    console.log('[Move API] playerId from request body:', playerId);
+    console.log('[Move API] game.white_player_id from database:', game.white_player_id);
+    console.log('[Move API] game.black_player_id from database:', game.black_player_id);
+    console.log('[Move API] user.id === playerId:', user.id === playerId);
+    console.log('[Move API] user.id === white_player_id:', user.id === game.white_player_id);
+    console.log('[Move API] user.id === black_player_id:', user.id === game.black_player_id);
+    console.log('[Move API] playerId === white_player_id:', playerId === game.white_player_id);
+    console.log('[Move API] playerId === black_player_id:', playerId === game.black_player_id);
+
     const isWhite = game.white_player_id === playerId;
     const isBlack = game.black_player_id === playerId;
 
+    console.log('[Move API] isWhite:', isWhite);
+    console.log('[Move API] isBlack:', isBlack);
+
     if (!isWhite && !isBlack) {
-      console.log('[Move API] 403: User not a player in this game', {
-        playerId,
-        white_player_id: game.white_player_id,
-        black_player_id: game.black_player_id,
+      console.log('[Move API] ❌ 403: User not a player in this game');
+      console.log('[Move API] Comparison details:', {
+        authenticatedUserId: user.id,
+        requestPlayerId: playerId,
+        gameWhitePlayerId: game.white_player_id,
+        gameBlackPlayerId: game.black_player_id,
+        userIdMatchesWhite: user.id === game.white_player_id,
+        userIdMatchesBlack: user.id === game.black_player_id,
+        playerIdMatchesWhite: playerId === game.white_player_id,
+        playerIdMatchesBlack: playerId === game.black_player_id,
       });
       return NextResponse.json({
         step: "auth",
         error: "User is not a player in this game",
         message: "You are not authorized to make moves in this game",
         details: {
-          playerId,
+          authenticatedUserId: user.id,
+          requestPlayerId: playerId,
           whitePlayerId: game.white_player_id,
           blackPlayerId: game.black_player_id
         }
       }, { status: 403 });
     }
+
+    console.log('[Move API] ✓ User is authorized to play this game');
 
     const playerColor = isWhite ? "white" : "black";
 
