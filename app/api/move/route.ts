@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { applyMove } from "@/lib/chessEngine";
 import { calculateClock, getNextTimeoutAt } from "@/lib/timeControl";
-import { createServerClient } from "@/lib/supabaseServer";
+import { createServerClient as createSupabaseServerClient } from '@supabase/ssr';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +33,22 @@ export async function POST(req: NextRequest) {
       console.log('[Move API] Cookie names:', cookieNames);
     }
 
-    const supabase = await createServerClient();
+    // Create Supabase client directly from request cookies (Netlify/Bolt compatible)
+    const supabase = createSupabaseServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return req.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            // API routes can't set cookies in the response here
+            // They would need to be set via NextResponse
+          },
+        },
+      }
+    );
 
     console.log('[Move API] Getting authenticated user from cookies...');
     const authResult = await supabase.auth.getUser();
@@ -65,8 +80,7 @@ export async function POST(req: NextRequest) {
       }));
 
       // Fetch game data without auth to get player IDs for debugging
-      const supabaseAdmin = await createServerClient();
-      const { data: gameDebug } = await supabaseAdmin
+      const { data: gameDebug } = await supabase
         .from("games")
         .select("white_player_id, black_player_id")
         .eq("id", gameId)
