@@ -62,16 +62,33 @@ export default function GamePage() {
   const loadGame = useCallback(async () => {
     try {
       console.log('Loading game:', gameId);
-      const { data: { session } } = await supabase.auth.getSession();
+      console.log('[loadGame] Checking for session...');
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      console.log('[loadGame] Session check result:', {
+        hasSession: !!session,
+        hasError: !!sessionError,
+        userId: session?.user?.id,
+        error: sessionError
+      });
+
+      if (sessionError) {
+        console.error('[loadGame] Session error:', sessionError);
+        setError(`Session error: ${sessionError.message}`);
+        setLoading(false);
+        return;
+      }
 
       if (!session) {
-        console.log('No session, redirecting to login');
+        console.log('[loadGame] No session, redirecting to login');
         router.replace('/login');
         return;
       }
 
+      console.log('[loadGame] ✓ Session found, user ID:', session.user.id);
       setUserId(session.user.id);
 
+      console.log('[loadGame] Fetching game data for game ID:', gameId);
       const { data: gameData, error: gameError } = await supabase
         .from('games')
         .select(`
@@ -93,8 +110,12 @@ export default function GamePage() {
         .eq('id', gameId)
         .maybeSingle();
 
-      console.log('Game data:', gameData);
-      console.log('Game error:', gameError);
+      console.log('[loadGame] Game query result:', {
+        hasData: !!gameData,
+        hasError: !!gameError,
+        gameId: gameData?.id,
+        error: gameError
+      });
 
       if (gameError) {
         console.error('Error loading game:', gameError);
@@ -409,17 +430,39 @@ export default function GamePage() {
     console.log('[⏱️ TIMING] Starting API request at:', apiRequestStart - dropTime, 'ms after drop');
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      console.log('[Frontend Move] Getting session for API call...');
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-      if (!session) {
-        console.error('No session found - rolling back');
-        alert('You must be logged in to make a move');
+      console.log('[Frontend Move] Session check:', {
+        hasSession: !!session,
+        hasError: !!sessionError,
+        hasAccessToken: !!session?.access_token,
+        userId: session?.user?.id,
+        error: sessionError
+      });
+
+      if (sessionError) {
+        console.error('[Frontend Move] Session error:', sessionError);
+        alert(`Session error: ${sessionError.message}`);
         lastMoveNumberRef.current = optimisticMoveNumber - 1;
         setMoves(previousMoves);
         setGame((prev) => prev ? { ...prev, current_fen: previousFen } : prev);
         setMovingPiece(false);
         return false;
       }
+
+      if (!session || !session.access_token) {
+        console.error('[Frontend Move] No session or access token found');
+        alert('You must be logged in to make a move. Please log in again.');
+        lastMoveNumberRef.current = optimisticMoveNumber - 1;
+        setMoves(previousMoves);
+        setGame((prev) => prev ? { ...prev, current_fen: previousFen } : prev);
+        setMovingPiece(false);
+        router.replace('/login');
+        return false;
+      }
+
+      console.log('[Frontend Move] ✓ Session valid, access_token length:', session.access_token.length);
 
       const movePayload = {
         gameId: game.id,
@@ -428,6 +471,9 @@ export default function GamePage() {
         to,
         promotion,
       };
+
+      console.log('[Frontend Move] Calling API with payload:', movePayload);
+      console.log('[Frontend Move] Authorization header:', `Bearer ${session.access_token.substring(0, 20)}...`);
 
       const response = await fetch('/api/move', {
         method: 'POST',
