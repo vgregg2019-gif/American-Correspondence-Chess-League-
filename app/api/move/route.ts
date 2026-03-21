@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { applyMove } from "@/lib/chessEngine";
 import { calculateClock, getNextTimeoutAt } from "@/lib/timeControl";
+import { createServerClient } from "@/lib/supabaseServer";
 
 export const dynamic = 'force-dynamic';
 
@@ -37,39 +37,7 @@ export async function POST(req: NextRequest) {
     const token = authHeader.replace('Bearer ', '');
     console.log('[Move API] Token extracted (first 20 chars):', token.substring(0, 20) + '...');
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    console.log('[Move API] Environment check:', {
-      hasUrl: !!supabaseUrl,
-      hasKey: !!supabaseKey,
-      urlValue: supabaseUrl,
-      keyPrefix: supabaseKey?.substring(0, 20)
-    });
-
-    if (!supabaseUrl || !supabaseKey) {
-      return NextResponse.json({
-        step: "config",
-        error: "Supabase configuration missing",
-        message: "Server environment variables not configured",
-        details: {
-          hasUrl: !!supabaseUrl,
-          hasKey: !!supabaseKey
-        }
-      }, { status: 500 });
-    }
-
-    const supabase = createClient(
-      supabaseUrl,
-      supabaseKey,
-      {
-        global: {
-          headers: {
-            Authorization: authHeader
-          }
-        }
-      }
-    );
+    const supabase = createServerClient(token);
 
     console.log('[Move API] Verifying user from token...');
     const authResult = await supabase.auth.getUser(token);
@@ -121,8 +89,6 @@ export async function POST(req: NextRequest) {
     console.log('[Move API] ===== GAME FETCH =====');
     console.log('[Move API] Game ID to fetch:', gameId);
 
-    const supabaseHost = new URL(supabaseUrl).hostname;
-    console.log('[Move API] Supabase project host:', supabaseHost);
     console.log('[Move API] Using service role key:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
     console.log('[Move API] Using anon key:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
     console.log('[Move API] Auth method: Bearer token from frontend (anon key + user token)');
@@ -130,12 +96,15 @@ export async function POST(req: NextRequest) {
     console.log('[Move API] RLS will be enforced: YES (using anon key with user auth)');
 
     if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      const adminClient = createClient(
-        supabaseUrl,
-        process.env.SUPABASE_SERVICE_ROLE_KEY
-      );
+      const adminClient = createServerClient();
 
-      const { data: adminGameCheck } = await adminClient
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const adminClientWithServiceRole = createClient(supabaseUrl, serviceRoleKey);
+
+      const { data: adminGameCheck } = await adminClientWithServiceRole
         .from("games")
         .select("id, white_player_id, black_player_id, status")
         .eq("id", gameId)
