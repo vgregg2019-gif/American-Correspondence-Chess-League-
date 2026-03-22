@@ -97,23 +97,17 @@ export default function RegisterPage() {
       }
 
       if (data.user) {
-        console.log('[Register] Updating profile username for user:', data.user.id);
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            username: username
-          })
-          .eq('id', data.user.id);
+        console.log('[Register] User created successfully:', data.user.id);
+        console.log('[Register] Profile auto-created by trigger with username:', username);
 
-        if (profileError) {
-          console.error('[Register] Profile update error:', profileError);
-          setError('Failed to update profile');
+        if (data.session) {
+          console.log('[Register] Session established, redirecting to dashboard');
+          router.push('/dashboard');
+        } else {
+          console.log('[Register] No session - email confirmation may be required');
+          setError('Account created! Please check your email to confirm your account before logging in.');
           setLoading(false);
-          return;
         }
-
-        console.log('[Register] Registration successful, redirecting to dashboard');
-        router.push('/dashboard');
       }
     } catch (err) {
       console.error('[Register] Network/exception failure:', {
