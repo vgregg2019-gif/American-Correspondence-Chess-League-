@@ -29,32 +29,86 @@ export async function POST(req: NextRequest) {
     const { cookies } = await import('next/headers');
     const cookieStore = await cookies();
     const allCookies = cookieStore.getAll();
-    console.log('[Move API] Request cookies:', {
-      count: allCookies.length,
-      names: allCookies.map(c => c.name),
-      authCookies: allCookies.filter(c => c.name.includes('sb-') || c.name.includes('auth')).map(c => ({
-        name: c.name,
-        valueLength: c.value?.length || 0,
-        valuePrefix: c.value?.substring(0, 30) + '...'
-      }))
+
+    const authCookies = allCookies.filter(c => c.name.includes('sb-') || c.name.includes('auth'));
+
+    console.log('[Move API] ===== COOKIE DEBUG =====');
+    console.log('[Move API] Total cookies:', allCookies.length);
+    console.log('[Move API] All cookie names:', allCookies.map(c => c.name));
+    console.log('[Move API] Auth-related cookies:', authCookies.length);
+
+    authCookies.forEach(cookie => {
+      console.log(`[Move API]   - ${cookie.name}:`, {
+        length: cookie.value?.length || 0,
+        prefix: cookie.value?.substring(0, 50) + '...',
+        hasValue: !!cookie.value
+      });
     });
+
+    if (authCookies.length === 0) {
+      console.log('[Move API] ⚠️ WARNING: No auth cookies found!');
+      console.log('[Move API] This means cookies are not being sent from the client');
+      console.log('[Move API] OR middleware is not preserving them');
+    }
+
+    console.log('[Move API] ===== END COOKIE DEBUG =====');
 
     const supabase = await createServerClient();
 
     // Get session (more reliable than getUser as it reads from cookie directly)
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-    console.log('[Move API] Session check:', {
+    console.log('[Move API] ===== SESSION DEBUG =====');
+    console.log('[Move API] Session check result:', {
       hasSession: !!session,
       sessionUserId: session?.user?.id,
+      sessionUserEmail: session?.user?.email,
       sessionError: sessionError?.message,
-      accessToken: session?.access_token ? 'present (' + session.access_token.substring(0, 20) + '...)' : 'missing'
+      sessionErrorName: sessionError?.name,
+      sessionErrorStatus: sessionError?.status,
+      accessToken: session?.access_token ? 'present (' + session.access_token.substring(0, 20) + '...)' : 'missing',
+      refreshToken: session?.refresh_token ? 'present (length: ' + session.refresh_token.length + ')' : 'missing',
     });
 
+    if (sessionError) {
+      console.log('[Move API] ❌ Session error details:', {
+        message: sessionError.message,
+        name: sessionError.name,
+        status: sessionError.status,
+        fullError: JSON.stringify(sessionError, null, 2)
+      });
+    }
+
+    if (!session) {
+      console.log('[Move API] ❌ No session object returned');
+      console.log('[Move API] Possible causes:');
+      console.log('[Move API]   1. User not logged in');
+      console.log('[Move API]   2. Session expired');
+      console.log('[Move API]   3. Auth cookies not being sent from client');
+      console.log('[Move API]   4. Middleware not refreshing session');
+      console.log('[Move API]   5. Cookie domain/path mismatch');
+    }
+
+    if (!session?.user) {
+      console.log('[Move API] ❌ No user in session');
+    }
+
+    console.log('[Move API] ===== END SESSION DEBUG =====');
+
     if (sessionError || !session?.user) {
-      console.log('[Move API] Authentication failed - no session');
+      console.log('[Move API] 🚫 RETURNING 401 - Not authenticated');
+      console.log('[Move API] Reason:', !session ? 'No session' : !session.user ? 'No user in session' : sessionError?.message);
       return NextResponse.json(
-        { error: 'Not authenticated' },
+        {
+          error: 'Not authenticated',
+          debug: {
+            hasSession: !!session,
+            hasUser: !!session?.user,
+            sessionError: sessionError?.message,
+            cookieCount: allCookies.length,
+            authCookieCount: authCookies.length,
+          }
+        },
         { status: 401 }
       );
     }

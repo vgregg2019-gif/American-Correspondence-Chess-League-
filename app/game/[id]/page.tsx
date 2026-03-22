@@ -471,8 +471,13 @@ export default function GamePage() {
         promotion,
       };
 
+      console.log('[Frontend Move] ===== CLIENT COOKIE DEBUG =====');
+      console.log('[Frontend Move] All cookies:', document.cookie);
+      console.log('[Frontend Move] Supabase cookies:', document.cookie.split(';').filter(c => c.includes('sb-')));
+      console.log('[Frontend Move] ===== END CLIENT COOKIE DEBUG =====');
+
       console.log('[Frontend Move] Calling API with payload:', movePayload);
-      console.log('[Frontend Move] Using cookie-based authentication');
+      console.log('[Frontend Move] Using cookie-based authentication with credentials: "include"');
 
       const response = await fetch('/api/move', {
         method: 'POST',
