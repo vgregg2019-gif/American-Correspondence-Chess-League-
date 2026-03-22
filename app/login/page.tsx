@@ -1,9 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
+
+// UNMISTAKABLE RUNTIME MARKER
+console.log('██████████████████████████████████████████████');
+console.log('█ LOGIN_CLIENT_V1_MOUNTED                   █');
+console.log('█ Timestamp:', new Date().toISOString(), '      █');
+console.log('██████████████████████████████████████████████');
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,7 +18,18 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    console.log('██████████████████████████████████████████████');
+    console.log('█ LOGIN_USEEFFECT_V1 - Component Mounted    █');
+    console.log('█ Location:', window.location.href, '        █');
+    console.log('██████████████████████████████████████████████');
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
+    console.log('██████████████████████████████████████████████');
+    console.log('█ LOGIN_FORM_SUBMIT_V1                      █');
+    console.log('█ handleLogin() called                      █');
+    console.log('██████████████████████████████████████████████');
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -85,6 +102,9 @@ export default function LoginPage() {
         </div>
 
         <div className="card">
+          <div className="text-xs text-yellow-400 mb-2 font-mono">
+            ██ LOGIN_CLIENT_V1 - HYDRATION TEST ██
+          </div>
           <h2 className="text-2xl font-semibold mb-6 text-center">Sign In</h2>
 
           {error && (
@@ -128,8 +148,14 @@ export default function LoginPage() {
               type="submit"
               className="btn-primary w-full"
               disabled={loading}
+              onClick={(e) => {
+                console.log('██████████████████████████████████████████████');
+                console.log('█ LOGIN_BUTTON_CLICK_V1                     █');
+                console.log('█ Direct onClick handler fired              █');
+                console.log('██████████████████████████████████████████████');
+              }}
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Signing in...' : 'Sign In V1-HYDRATION-TEST'}
             </button>
           </form>
 

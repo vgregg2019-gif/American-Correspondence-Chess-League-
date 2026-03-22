@@ -5,6 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 
+// UNMISTAKABLE RUNTIME MARKER
+console.log('██████████████████████████████████████████████');
+console.log('█ REGISTER_CLIENT_V1_MOUNTED                █');
+console.log('█ Timestamp:', new Date().toISOString(), '      █');
+console.log('██████████████████████████████████████████████');
+
 export default function RegisterPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -14,10 +20,18 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    console.log('REGISTER BUILD CHECK LOADED');
+    console.log('██████████████████████████████████████████████');
+    console.log('█ REGISTER_USEEFFECT_V1 - Component Mounted █');
+    console.log('█ Location:', window.location.href, '        █');
+    console.log('██████████████████████████████████████████████');
   }, []);
 
   const handleRegister = async (e: React.FormEvent) => {
+    console.log('██████████████████████████████████████████████');
+    console.log('█ REGISTER_FORM_SUBMIT_V1                   █');
+    console.log('█ handleRegister() called                   █');
+    console.log('██████████████████████████████████████████████');
+
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -122,7 +136,9 @@ export default function RegisterPage() {
         </div>
 
         <div className="card">
-          <div className="text-xs text-yellow-400 mb-2">REGISTER BUILD CHECK</div>
+          <div className="text-xs text-yellow-400 mb-2 font-mono">
+            ██ REGISTER_CLIENT_V1 - HYDRATION TEST ██
+          </div>
           <h2 className="text-2xl font-semibold mb-6 text-center">Create Account</h2>
 
           {error && (
@@ -183,8 +199,14 @@ export default function RegisterPage() {
               type="submit"
               className="btn-primary w-full"
               disabled={loading}
+              onClick={(e) => {
+                console.log('██████████████████████████████████████████████');
+                console.log('█ REGISTER_BUTTON_CLICK_V1                  █');
+                console.log('█ Direct onClick handler fired              █');
+                console.log('██████████████████████████████████████████████');
+              }}
             >
-              {loading ? 'Creating account...' : 'Create Account TEST 999'}
+              {loading ? 'Creating account...' : 'Create Account V1-HYDRATION-TEST'}
             </button>
           </form>
 
