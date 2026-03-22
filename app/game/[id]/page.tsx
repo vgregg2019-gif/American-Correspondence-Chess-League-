@@ -471,21 +471,32 @@ export default function GamePage() {
         promotion,
       };
 
-      console.log('[Frontend Move] ===== CLIENT COOKIE DEBUG =====');
+      console.log('[Frontend Move] ===== CLIENT AUTH DEBUG =====');
+      console.log('[Frontend Move] Session access token:', session.access_token ? 'present (' + session.access_token.substring(0, 20) + '...)' : 'MISSING');
       console.log('[Frontend Move] All cookies:', document.cookie);
       console.log('[Frontend Move] Supabase cookies:', document.cookie.split(';').filter(c => c.includes('sb-')));
-      console.log('[Frontend Move] ===== END CLIENT COOKIE DEBUG =====');
+      console.log('[Frontend Move] ===== END CLIENT AUTH DEBUG =====');
 
       console.log('[Frontend Move] Calling API with payload:', movePayload);
-      console.log('[Frontend Move] Using cookie-based authentication with credentials: "include"');
+      console.log('[Frontend Move] Using Authorization header (Bearer token) + cookies as fallback');
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      // Add Authorization header with access token (more reliable than cookies)
+      if (session.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+        console.log('[Frontend Move] ✓ Authorization header set');
+      } else {
+        console.log('[Frontend Move] ⚠️ No access token available, relying on cookies only');
+      }
 
       const response = await fetch('/api/move', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(movePayload),
-        credentials: 'include',
+        credentials: 'include', // Still send cookies as fallback
       });
 
       const apiResponseTime = performance.now();

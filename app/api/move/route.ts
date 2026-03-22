@@ -22,8 +22,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create server client with detailed cookie logging
-    console.log('[Move API] Creating Supabase server client...');
+    // Check for Authorization header first (more reliable than cookies)
+    const authHeader = req.headers.get('authorization');
+    console.log('[Move API] Auth header present:', !!authHeader);
 
     // Log all cookies to debug auth issue
     const { cookies } = await import('next/headers');
@@ -32,31 +33,39 @@ export async function POST(req: NextRequest) {
 
     const authCookies = allCookies.filter(c => c.name.includes('sb-') || c.name.includes('auth'));
 
-    console.log('[Move API] ===== COOKIE DEBUG =====');
+    console.log('[Move API] ===== AUTH DEBUG =====');
+    console.log('[Move API] Authorization header:', authHeader ? 'present (Bearer token)' : 'MISSING');
     console.log('[Move API] Total cookies:', allCookies.length);
-    console.log('[Move API] All cookie names:', allCookies.map(c => c.name));
-    console.log('[Move API] Auth-related cookies:', authCookies.length);
+    console.log('[Move API] Auth cookies:', authCookies.length);
 
-    authCookies.forEach(cookie => {
-      console.log(`[Move API]   - ${cookie.name}:`, {
-        length: cookie.value?.length || 0,
-        prefix: cookie.value?.substring(0, 50) + '...',
-        hasValue: !!cookie.value
+    if (authCookies.length > 0) {
+      authCookies.forEach(cookie => {
+        console.log(`[Move API]   Cookie: ${cookie.name} (${cookie.value?.length || 0} chars)`);
       });
-    });
-
-    if (authCookies.length === 0) {
-      console.log('[Move API] ⚠️ WARNING: No auth cookies found!');
-      console.log('[Move API] This means cookies are not being sent from the client');
-      console.log('[Move API] OR middleware is not preserving them');
     }
 
-    console.log('[Move API] ===== END COOKIE DEBUG =====');
+    console.log('[Move API] ===== END AUTH DEBUG =====');
 
     const supabase = await createServerClient();
 
-    // Get session (more reliable than getUser as it reads from cookie directly)
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    // Try to get session from header token first, fall back to cookies
+    let session = null;
+    let sessionError = null;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      console.log('[Move API] Using Authorization header token');
+      const { data, error } = await supabase.auth.getUser(token);
+      if (data.user) {
+        session = { user: data.user, access_token: token };
+      }
+      sessionError = error;
+    } else {
+      console.log('[Move API] Trying cookie-based session');
+      const { data, error } = await supabase.auth.getSession();
+      session = data.session;
+      sessionError = error;
+    }
 
     console.log('[Move API] ===== SESSION DEBUG =====');
     console.log('[Move API] Session check result:', {
