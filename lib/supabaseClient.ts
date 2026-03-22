@@ -19,9 +19,49 @@ if (!supabaseUrl || !supabaseAnonKey) {
   });
 }
 
+// CRITICAL: Configure for cookie storage (not localStorage) so server can access session
 export const supabase = createBrowserClient(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key'
+  supabaseAnonKey || 'placeholder-key',
+  {
+    cookies: {
+      getAll() {
+        return document.cookie
+          .split('; ')
+          .map(cookie => {
+            const [name, ...valueParts] = cookie.split('=');
+            return {
+              name,
+              value: decodeURIComponent(valueParts.join('='))
+            };
+          })
+          .filter(c => c.name);
+      },
+      setAll(cookies) {
+        cookies.forEach(({ name, value, options }) => {
+          let cookie = `${name}=${encodeURIComponent(value)}`;
+
+          if (options?.maxAge) {
+            cookie += `; max-age=${options.maxAge}`;
+          }
+          if (options?.domain) {
+            cookie += `; domain=${options.domain}`;
+          }
+          if (options?.path) {
+            cookie += `; path=${options.path}`;
+          }
+          if (options?.sameSite) {
+            cookie += `; samesite=${options.sameSite}`;
+          }
+          if (options?.secure) {
+            cookie += '; secure';
+          }
+
+          document.cookie = cookie;
+        });
+      }
+    }
+  }
 );
 
 export type Database = {

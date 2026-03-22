@@ -1,53 +1,154 @@
-# Security Configuration Steps
+# Security Configuration: Cookie-Based Authentication
 
-This document outlines the manual configuration steps needed in the Supabase Dashboard to complete the security improvements.
+## What Changed
 
-## ✅ Completed (via Migration)
+The app was updated to use **cookie-based authentication** instead of localStorage. This is required for server-side authentication in Next.js App Router.
 
-1. **Added index for moves.player_id foreign key** - Critical for query performance
-2. **Removed unused indexes** - Reduces storage and write overhead
+## Technical Details
 
-## 🔧 Manual Configuration Required
+### Before (Broken)
+```
+User Login → Session in localStorage → Frontend ✅ | Server ❌
+```
 
-The following settings must be configured in the Supabase Dashboard as they cannot be automated via SQL migrations:
+### After (Fixed)
+```
+User Login → Session in cookies → Frontend ✅ | Server ✅
+```
 
-### 1. Auth DB Connection Strategy
+## Code Changes
 
-**Issue:** Auth server using fixed connection pool (10 connections) instead of percentage-based allocation.
+### 1. Browser Client (`lib/supabaseClient.ts`)
 
-**Steps:**
-1. Navigate to Supabase Dashboard → Project Settings → Database
-2. Go to "Connection Pooling" section
-3. Find "Auth Server" connection pool settings
-4. Change connection strategy from "Fixed" to "Percentage"
-5. Set Auth connections to use 10-15% of total connection pool
-6. Click "Save"
+Added explicit cookie configuration to `createBrowserClient`:
 
-**Why:** Percentage-based allocation automatically scales with instance size upgrades.
+```typescript
+export const supabase = createBrowserClient(url, key, {
+  cookies: {
+    getAll() {
+      return document.cookie.split('; ').map(...);
+    },
+    setAll(cookies) {
+      cookies.forEach(({ name, value, options }) => {
+        document.cookie = `${name}=${encodeURIComponent(value)}; ...`;
+      });
+    }
+  }
+});
+```
 
-### 2. Leaked Password Protection
+**Why**: Forces Supabase to use cookies instead of localStorage
 
-**Issue:** HaveIBeenPwned.org password checking is disabled.
+### 2. Server API Route (`app/api/move/route.ts`)
 
-**Steps:**
-1. Navigate to Supabase Dashboard → Authentication → Settings
-2. Scroll to "Security and Protection" section
-3. Find "Leaked Password Protection" toggle
-4. Enable "Check passwords against HaveIBeenPwned"
-5. Click "Save"
+Changed authentication method:
 
-**Why:** Prevents users from using compromised passwords, significantly improving account security.
+```typescript
+// Before:
+const { data: { user }, error } = await supabase.auth.getUser();
 
-## Configuration Impact
+// After:
+const { data: { session }, error } = await supabase.auth.getSession();
+const user = session?.user;
+```
 
-- **Performance:** Index improvements will speed up move history queries
-- **Security:** Password protection prevents use of known compromised credentials
-- **Scalability:** Percentage-based Auth connections scale with database instance
+**Why**: `getSession()` reads from cookie directly; `getUser()` makes API call
 
-## Verification
+### 3. Server Client (`lib/supabaseServer.ts`)
 
-After applying these changes:
+Already correctly configured with Next.js cookies() API:
 
-1. Check indexes: Run `\di` in Supabase SQL Editor to verify indexes
-2. Test Auth: Try registering with a known leaked password (should be rejected)
-3. Monitor performance: Check query execution times for move history queries
+```typescript
+export async function createServerClient() {
+  const cookieStore = await cookies();
+  return createSupabaseServerClient(url, key, {
+    cookies: {
+      getAll() { return cookieStore.getAll(); },
+      setAll(cookies) { /* set cookies */ }
+    }
+  });
+}
+```
+
+**Why**: Server client can read cookies sent with HTTP requests
+
+## Security Benefits
+
+1. **HttpOnly Cookies**: Cannot be accessed by JavaScript (XSS protection)
+2. **Secure Flag**: Only sent over HTTPS in production
+3. **SameSite**: CSRF protection
+4. **Server Validation**: Every request validated on server
+5. **Short Expiry**: Tokens expire and refresh automatically
+
+## Cookie Configuration
+
+Cookies created by Supabase auth:
+
+- `sb-{project-ref}-auth-token` - Access token
+- `sb-{project-ref}-auth-token-code-verifier` - PKCE verifier
+- `sb-{project-ref}-auth-token.0`, `.1`, etc. - Chunked tokens (if large)
+
+Options:
+- Path: `/`
+- MaxAge: Configured by Supabase
+- SameSite: `Lax`
+- Secure: `true` (in production)
+
+## Migration Impact
+
+### Existing Users
+Users with sessions in localStorage will need to **log in again** after deployment.
+
+### Cleanup (Optional)
+Can add to login page:
+
+```typescript
+useEffect(() => {
+  // Clear old localStorage auth
+  Object.keys(localStorage)
+    .filter(key => key.includes('supabase') || key.includes('sb-'))
+    .forEach(key => localStorage.removeItem(key));
+}, []);
+```
+
+### Cookie Size
+Auth cookies can be large (800+ bytes). Chunking is automatic if needed.
+
+## Testing Validation
+
+After login, verify in DevTools:
+
+```javascript
+// Should show cookies:
+document.cookie.includes('sb-')  // true
+
+// Should NOT have localStorage auth:
+!Object.keys(localStorage).some(k => k.includes('supabase-auth'))  // true
+```
+
+## Environment Requirements
+
+No changes needed to environment variables. Uses existing:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+## Error Handling
+
+If cookies fail to set:
+- Check browser privacy settings (must allow cookies)
+- Check domain configuration
+- Check HTTPS in production
+
+If server can't read cookies:
+- Check Next.js version (14+ required)
+- Check `cookies()` import from `next/headers`
+- Check API route is dynamic: `export const dynamic = 'force-dynamic'`
+
+## Compliance Notes
+
+Cookies containing authentication tokens may require:
+- Privacy policy update
+- Cookie consent banner (depending on jurisdiction)
+- User notification of cookie usage
+
+Check local regulations (GDPR, CCPA, etc.)

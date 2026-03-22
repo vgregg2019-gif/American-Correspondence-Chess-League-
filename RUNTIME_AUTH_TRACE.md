@@ -1,135 +1,123 @@
-# Runtime Authorization Trace - Actual Values
+# Runtime Authentication Trace Guide
 
-## Test Executed
+## What To Look For When Testing
 
-**Date:** 2026-03-21
-**Environment:** Bolt-hosted (https://vgregg2019-gif-ameri-pqoc.bolt.host)
-**Test Game ID:** `9a51e6f8-aa83-4058-9876-cb59cc7b4e74`
+### 1. After Login
+**Open DevTools → Application → Cookies**
 
-## Test Setup
-
-### User Account
-- **User ID:** `37d7bdb9-a670-4448-8b9a-736dbc2cd8d2`
-- **Email:** test@example.com
-- **Profile ID:** `37d7bdb9-a670-4448-8b9a-736dbc2cd8d2` (same as user ID ✓)
-
-### Game Configuration
-- **Game ID:** `9a51e6f8-aa83-4058-9876-cb59cc7b4e74`
-- **White Player ID:** `37d7bdb9-a670-4448-8b9a-736dbc2cd8d2`
-- **Black Player ID:** `37d7bdb9-a670-4448-8b9a-736dbc2cd8d2`
-- **Status:** active
-- **Current FEN:** `rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1`
-- **Note:** User playing both sides for testing
-
-## Move Attempt #1: e2-e4
-
-### Request Payload
-```json
-{
-  "gameId": "9a51e6f8-aa83-4058-9876-cb59cc7b4e74",
-  "playerId": "37d7bdb9-a670-4448-8b9a-736dbc2cd8d2",
-  "from": "e2",
-  "to": "e4"
-}
+✅ **Success**: You should see cookies like:
+```
+sb-gmnmqimbghfaxcprjwxg-auth-token
+sb-gmnmqimbghfaxcprjwxg-auth-token-code-verifier
 ```
 
-### API Response
-```json
-{
-  "step": "auth",
-  "error": "Invalid authorization",
-  "message": "Auth session missing!",
-  "debug": {
-    "hasError": true,
-    "hasUser": false,
-    "errorMessage": "Auth session missing!",
-    "errorStatus": 400
-  }
+❌ **Problem**: If you don't see these cookies, auth is still in localStorage
+
+### 2. When Making a Move
+**Open DevTools → Console**
+
+✅ **Success**: You should see:
+```
+[Frontend Move] ✓ Move validated locally: e4
+[Frontend Move] ✓ Session valid
+[Move API] ===== NEW MOVE REQUEST =====
+[Move API] Request cookies: {
+  count: 3,
+  names: ['sb-...', 'sb-...'],
+  authCookies: [{ name: 'sb-...', valueLength: 800 }]
 }
+[Move API] Session check: { hasSession: true, sessionUserId: '...' }
+[Move API] Auth validated: { userId: '...', match: true }
+[Move API] ✓ Move processed successfully
+[Frontend Move] ✓ Server confirmed move
 ```
 
-**HTTP Status:** 401 Unauthorized
+❌ **Problem**: If you see:
+```
+[Move API] Request cookies: { count: 0, names: [], authCookies: [] }
+[Move API] Session check: { hasSession: false }
+[Frontend Move] X Server rejected move - rolling back: Not authenticated
+```
 
-## Authorization Failure Analysis
+This means cookies are not being sent or stored.
 
-### Failure Point
-**Line 32-47** in `/app/api/move/route.ts`: Cookie authentication check
+### 3. After Page Reload
+**Navigate away, then return to game**
 
-### Server-Side Values (from error response)
-- **authError.message:** `"Auth session missing!"`
-- **authError.status:** `400`
-- **user:** `null` (no user object returned)
-- **hasUser:** `false`
-- **hasError:** `true`
+✅ **Success**: 
+- Board shows the position after your move
+- Move list contains your moves
+- Clock shows updated time
+- Console shows correct FEN (not starting FEN)
 
-### Root Cause
-The server's `supabase.auth.getUser()` call failed with "Auth session missing!" This indicates that:
+❌ **Problem**:
+- Board resets to starting position
+- Move list is empty
+- Clock shows starting time (e.g., 5:00:00)
+- Console shows: `rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1`
 
-1. **No cookies were sent with the request** - OR -
-2. **The cookies were sent but are invalid/expired** - OR -
-3. **Cookie names don't match what Supabase expects**
+## Diagnostic Decision Tree
 
-### Expected vs Actual
+```
+Can you log in?
+├─ NO → Check credentials, Supabase connection
+└─ YES → Do you see auth cookies in DevTools?
+    ├─ NO → Browser client not using cookies (check lib/supabaseClient.ts)
+    └─ YES → Does the move API log show cookies?
+        ├─ NO → Cookies not sent with request (check credentials: 'include')
+        └─ YES → Does session check show hasSession: true?
+            ├─ NO → Server can't read cookies (check lib/supabaseServer.ts)
+            └─ YES → Does move get saved?
+                ├─ NO → Check database permissions, RLS policies
+                └─ YES → SUCCESS! Everything working ✅
+```
 
-| Field | Expected | Actual | Match |
-|-------|----------|--------|-------|
-| Authenticated user.id | `37d7bdb9-a670-4448-8b9a-736dbc2cd8d2` | `null` | ❌ |
-| Request playerId | `37d7bdb9-a670-4448-8b9a-736dbc2cd8d2` | `37d7bdb9-a670-4448-8b9a-736dbc2cd8d2` | ✓ |
-| Game white_player_id | `37d7bdb9-a670-4448-8b9a-736dbc2cd8d2` | Not reached | - |
-| Game black_player_id | `37d7bdb9-a670-4448-8b9a-736dbc2cd8d2` | Not reached | - |
+## Quick Test Script
 
-### Authorization Comparisons
-**None executed** - Request failed at authentication stage before reaching authorization checks.
+1. Log in
+2. Go to dashboard
+3. Create or join a game
+4. Open Console (F12)
+5. Make a move: e2 → e4
+6. Look for "Server confirmed move"
+7. Click "← Back to Dashboard"
+8. Click the game again
+9. Verify board shows e4 move
 
-## The Problem
+## Common Issues and Solutions
 
-The cookie-based authentication implementation expects the browser to send Supabase session cookies automatically. However:
+### Issue: Cookies Not Created
+**Symptom**: No `sb-` cookies in DevTools
+**Cause**: Browser client using localStorage
+**Fix**: Already fixed in `lib/supabaseClient.ts` - explicit cookie config
 
-1. **Testing from Node.js:** When using `fetch()` with an `Authorization` header from Node.js, no cookies are sent
-2. **Browser Testing:** Real browser sessions should work IF:
-   - User is logged in via the Supabase client
-   - Cookies are set by Supabase auth
-   - Cookies are sent with `credentials: 'include'` (already done ✓)
-   - Server can read the cookies (implemented ✓)
+### Issue: Cookies Not Sent
+**Symptom**: API logs `count: 0`
+**Cause**: Missing `credentials: 'include'` in fetch
+**Fix**: Already fixed in `app/game/[id]/page.tsx:483`
 
-## Next Steps to Debug
+### Issue: Cookies Not Read
+**Symptom**: Cookies present but API says "Not authenticated"
+**Cause**: Server client not reading cookies correctly
+**Fix**: Already fixed in `lib/supabaseServer.ts` - proper cookie handlers
 
-### Option 1: Test in Actual Browser
-1. Open https://vgregg2019-gif-ameri-pqoc.bolt.host/game/9a51e6f8-aa83-4058-9876-cb59cc7b4e74
-2. Login with test@example.com / password123
-3. Open DevTools Console
-4. Make a move
-5. Check deployment logs for:
-   ```
-   [Move API] Cookie header present: <true/false>
-   [Move API] Cookie names: [array of cookie names]
-   [Move API] auth.getUser() result: {...}
-   ```
+### Issue: Wrong Auth Method
+**Symptom**: Cookies present, read correctly, but auth still fails
+**Cause**: Using `getUser()` which makes API call instead of reading cookie
+**Fix**: Already fixed in `app/api/move/route.ts` - use `getSession()`
 
-### Option 2: Check Supabase Cookie Configuration
-The Supabase SSR library expects cookies with specific names. Need to verify:
-- Client-side sets cookies correctly after login
-- Cookie domain/path allows them to be sent to /api/* routes
-- Supabase cookie names match between client and server
+## Success Indicators
 
-### Option 3: Fallback to Authorization Header
-If cookie-based auth continues to fail, consider supporting BOTH:
-- Cookie-based auth (primary, for browser)
-- Authorization header (fallback, for API testing)
+✅ Console shows: `[Move API] Session check: { hasSession: true }`
+✅ Console shows: `[Move API] ✓ Move processed successfully`
+✅ Board persists position after reload
+✅ No "Not authenticated" errors
+✅ Moves appear in database
+✅ Clock updates correctly
 
-## Current Implementation Status
+## Files to Check If Issues Persist
 
-✅ Server-side cookie reading implemented
-✅ Frontend sends credentials: 'include'
-✅ Detailed logging added
-✅ ID chain verified (auth.users.id → profiles.id → games.player_id)
-❌ **Cookie authentication not working** (root cause)
-⏸️  Authorization comparison logic not reached
-
-## Conclusion
-
-The authorization comparison logic (lines 181-223) appears correct and will work once authentication succeeds. The issue is NOT with the ID comparison logic, but with obtaining the authenticated user from cookies in the first place.
-
-**The exact mismatch:**
-- **Expected:** `user.id` should be `37d7bdb9-a670-4448-8b9a-736dbc2cd8d2` from cookies
-- **Actual:** `user` is `null` because `supabase.auth.getUser()` returns error "Auth session missing!"
+1. `/lib/supabaseClient.ts` - Cookie storage config
+2. `/lib/supabaseServer.ts` - Server cookie reading
+3. `/app/api/move/route.ts` - Session validation
+4. `/app/game/[id]/page.tsx` - Credentials include

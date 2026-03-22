@@ -22,24 +22,50 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = await createServerClient();
+    // Create server client with detailed cookie logging
+    console.log('[Move API] Creating Supabase server client...');
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    console.log('[Move API] Auth check:', {
-      hasUser: !!user,
-      userId: user?.id,
-      providedPlayerId: playerId,
-      authError: authError?.message
+    // Log all cookies to debug auth issue
+    const { cookies } = await import('next/headers');
+    const cookieStore = await cookies();
+    const allCookies = cookieStore.getAll();
+    console.log('[Move API] Request cookies:', {
+      count: allCookies.length,
+      names: allCookies.map(c => c.name),
+      authCookies: allCookies.filter(c => c.name.includes('sb-') || c.name.includes('auth')).map(c => ({
+        name: c.name,
+        valueLength: c.value?.length || 0,
+        valuePrefix: c.value?.substring(0, 30) + '...'
+      }))
     });
 
-    if (authError || !user) {
-      console.log('[Move API] Authentication failed');
+    const supabase = await createServerClient();
+
+    // Get session (more reliable than getUser as it reads from cookie directly)
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    console.log('[Move API] Session check:', {
+      hasSession: !!session,
+      sessionUserId: session?.user?.id,
+      sessionError: sessionError?.message,
+      accessToken: session?.access_token ? 'present (' + session.access_token.substring(0, 20) + '...)' : 'missing'
+    });
+
+    if (sessionError || !session?.user) {
+      console.log('[Move API] Authentication failed - no session');
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
       );
     }
+
+    const user = session.user;
+
+    console.log('[Move API] Auth validated:', {
+      userId: user.id,
+      providedPlayerId: playerId,
+      match: user.id === playerId
+    });
 
     if (user.id !== playerId) {
       console.log('[Move API] User ID mismatch');
