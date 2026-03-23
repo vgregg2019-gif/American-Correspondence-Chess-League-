@@ -195,6 +195,7 @@ export async function POST(req: NextRequest) {
       .from('games')
       .update({
         current_fen: moveResult.fen,
+        turn: nextTurn,
         status: newStatus,
         result: newResult,
         last_move_at: nowISO,
