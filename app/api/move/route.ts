@@ -6,105 +6,47 @@ import { createServerClient } from '@/lib/supabaseServer';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  console.log('[Move API] ===== NEW MOVE REQUEST =====');
-
   try {
     const body = await req.json();
     const { gameId, playerId, from, to, promotion } = body;
 
-    console.log('[Move API] Request:', { gameId, playerId, from, to, promotion });
-
     if (!gameId || !playerId || !from || !to) {
-      console.log('[Move API] Missing required fields');
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // Log all cookies to debug auth issue
-    const { cookies } = await import('next/headers');
-    const cookieStore = await cookies();
-    const allCookies = cookieStore.getAll();
-
-    const authCookies = allCookies.filter(c => c.name.includes('sb-') || c.name.includes('auth'));
-
-    console.log('[Move API] ===== AUTH DEBUG =====');
-    console.log('[Move API] Total cookies:', allCookies.length);
-    console.log('[Move API] Auth cookies:', authCookies.length);
-
-    if (authCookies.length > 0) {
-      authCookies.forEach(cookie => {
-        console.log(`[Move API]   Cookie: ${cookie.name} (${cookie.value?.length || 0} chars)`);
-      });
-    }
-
-    console.log('[Move API] ===== END AUTH DEBUG =====');
-
     const supabase = await createServerClient();
 
     // CRITICAL: Use getUser() instead of getSession() in API routes
     // getUser() validates the JWT and works correctly with cookies in Route Handlers
-    // getSession() only reads from storage without validation
-    console.log('[Move API] Validating user from JWT');
     const { data: userData, error: userError } = await supabase.auth.getUser();
     const user = userData.user;
 
-    console.log('[Move API] User validation result:', {
-      hasUser: !!user,
-      userId: user?.id,
-      userEmail: user?.email,
-      error: userError?.message
-    });
-
     if (userError || !user) {
-      console.log('[Move API] 🚫 RETURNING 401 - Not authenticated');
-      console.log('[Move API] Reason:', userError?.message || 'No user found');
       return NextResponse.json(
-        {
-          error: 'Not authenticated',
-          debug: {
-            hasUser: !!user,
-            userError: userError?.message,
-            cookieCount: allCookies.length,
-            authCookieCount: authCookies.length,
-          }
-        },
+        { error: 'Not authenticated' },
         { status: 401 }
       );
     }
 
-    console.log('[Move API] Auth validated:', {
-      userId: user.id,
-      providedPlayerId: playerId,
-      match: user.id === playerId
-    });
-
     if (user.id !== playerId) {
-      console.log('[Move API] User ID mismatch');
+      // [Move API] User ID mismatch');
       return NextResponse.json(
         { error: 'Player ID does not match authenticated user' },
         { status: 403 }
       );
     }
 
-    console.log('[Move API] Fetching game from database...');
+    // [Move API] Fetching game from database...');
     const { data: game, error: gameError } = await supabase
       .from('games')
       .select('*')
       .eq('id', gameId)
       .maybeSingle();
 
-    console.log('[Move API] Game fetch result:', {
-      hasGame: !!game,
-      gameId: game?.id,
-      status: game?.status,
-      currentFen: game?.current_fen,
-      error: gameError?.message
-    });
-
     if (gameError || !game) {
-      console.log('[Move API] Game not found');
       return NextResponse.json(
         { error: 'Game not found' },
         { status: 404 }
@@ -112,7 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (game.status !== 'active') {
-      console.log('[Move API] Game not active:', game.status);
+      // [Move API] Game not active:', game.status);
       return NextResponse.json(
         { error: 'Game is not active' },
         { status: 400 }
@@ -123,7 +65,7 @@ export async function POST(req: NextRequest) {
     const isBlack = game.black_player_id === playerId;
 
     if (!isWhite && !isBlack) {
-      console.log('[Move API] Player not in this game');
+      // [Move API] Player not in this game');
       return NextResponse.json(
         { error: 'You are not a player in this game' },
         { status: 403 }
@@ -135,35 +77,20 @@ export async function POST(req: NextRequest) {
     const currentTurn = fenParts[1] === 'w' ? 'white' : 'black';
     const playerColor = isWhite ? 'white' : 'black';
 
-    console.log('[Move API] Turn validation:', {
-      currentTurn,
-      playerColor,
-      isPlayerTurn: currentTurn === playerColor
-    });
-
     if (currentTurn !== playerColor) {
-      console.log('[Move API] Not player turn');
       return NextResponse.json(
         { error: 'Not your turn' },
         { status: 400 }
       );
     }
 
-    console.log('[Move API] Validating move...');
+    // [Move API] Validating move...');
     const moveResult = applyMove({
       fen: currentFen,
       move: { from, to, promotion }
     });
 
-    console.log('[Move API] Move validation result:', {
-      ok: moveResult.ok,
-      san: moveResult.san,
-      newFen: moveResult.fen,
-      error: moveResult.error
-    });
-
     if (!moveResult.ok || !moveResult.fen || !moveResult.san) {
-      console.log('[Move API] Invalid move');
       return NextResponse.json(
         { error: moveResult.error || 'Invalid move' },
         { status: 400 }
@@ -181,7 +108,7 @@ export async function POST(req: NextRequest) {
       ? movesCount[0].move_number + 1
       : 1;
 
-    console.log('[Move API] Next move number:', nextMoveNumber);
+    // [Move API] Next move number:', nextMoveNumber);
 
     const now = new Date();
     const nowISO = now.toISOString();
@@ -200,7 +127,7 @@ export async function POST(req: NextRequest) {
 
     const clockUpdate = calculateClock(clockState, now);
 
-    console.log('[Move API] Clock calculation:', clockUpdate);
+    // [Move API] Clock calculation:', clockUpdate);
 
     let newStatus: 'active' | 'finished' = 'active';
     let newResult: string | null = null;
@@ -208,11 +135,11 @@ export async function POST(req: NextRequest) {
     if (moveResult.isCheckmate) {
       newStatus = 'finished';
       newResult = isWhite ? '1-0' : '0-1';
-      console.log('[Move API] Checkmate! Result:', newResult);
+      // [Move API] Checkmate! Result:', newResult);
     } else if (moveResult.isDraw || moveResult.isStalemate) {
       newStatus = 'finished';
       newResult = '1/2-1/2';
-      console.log('[Move API] Draw! Result:', newResult);
+      // [Move API] Draw! Result:', newResult);
     }
 
     const nextTurn: 'white' | 'black' = currentTurn === 'white' ? 'black' : 'white';
@@ -220,7 +147,7 @@ export async function POST(req: NextRequest) {
       ? getNextTimeoutAt(nextTurn, clockUpdate.whiteRemaining, clockUpdate.blackRemaining, now)
       : null;
 
-    console.log('[Move API] Inserting move into database...');
+    // [Move API] Inserting move into database...');
     const { data: insertedMove, error: moveInsertError } = await supabase
       .from('moves')
       .insert({
@@ -233,21 +160,14 @@ export async function POST(req: NextRequest) {
       .select()
       .single();
 
-    console.log('[Move API] Move insert result:', {
-      success: !!insertedMove,
-      moveId: insertedMove?.id,
-      error: moveInsertError?.message
-    });
-
     if (moveInsertError) {
-      console.log('[Move API] Failed to insert move');
       return NextResponse.json(
         { error: 'Failed to save move' },
         { status: 500 }
       );
     }
 
-    console.log('[Move API] Updating game state...');
+    // [Move API] Updating game state...');
     const { data: updatedGame, error: gameUpdateError } = await supabase
       .from('games')
       .update({
@@ -263,23 +183,14 @@ export async function POST(req: NextRequest) {
       .select()
       .single();
 
-    console.log('[Move API] Game update result:', {
-      success: !!updatedGame,
-      newFen: updatedGame?.current_fen,
-      status: updatedGame?.status,
-      result: updatedGame?.result,
-      error: gameUpdateError?.message
-    });
-
     if (gameUpdateError) {
-      console.log('[Move API] Failed to update game');
       return NextResponse.json(
         { error: 'Failed to update game' },
         { status: 500 }
       );
     }
 
-    console.log('[Move API] ✓ Move processed successfully');
+    // [Move API] ✓ Move processed successfully');
     return NextResponse.json({
       success: true,
       moveId: insertedMove.id,

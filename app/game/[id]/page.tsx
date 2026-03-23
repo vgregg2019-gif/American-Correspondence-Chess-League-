@@ -345,7 +345,7 @@ export default function GamePage() {
 
   async function handleMove(from: string, to: string, promotion?: string): Promise<boolean> {
     const dropTime = performance.now();
-    console.log('[⏱️ TIMING] Drop event at:', dropTime);
+    // [⏱️ TIMING] Drop event at:', dropTime);
 
     if (!game || !userId || movingPiece) {
       console.log('Move blocked:', { hasGame: !!game, hasUserId: !!userId, movingPiece });
@@ -361,7 +361,7 @@ export default function GamePage() {
     }
 
     const localValidationStart = performance.now();
-    console.log('[⏱️ TIMING] Starting local validation at:', localValidationStart - dropTime, 'ms after drop');
+    // [⏱️ TIMING] Starting local validation at:', localValidationStart - dropTime, 'ms after drop');
 
     const moveResult = applyMove({
       fen: game.current_fen,
@@ -369,7 +369,7 @@ export default function GamePage() {
     });
 
     const localValidationEnd = performance.now();
-    console.log('[⏱️ TIMING] Local validation took:', localValidationEnd - localValidationStart, 'ms');
+    // [⏱️ TIMING] Local validation took:', localValidationEnd - localValidationStart, 'ms');
 
     if (!moveResult.ok || !moveResult.fen || !moveResult.san) {
       console.error('[Frontend Move] ❌ Illegal move:', moveResult.error);
@@ -378,7 +378,7 @@ export default function GamePage() {
       return false;
     }
 
-    console.log('[Frontend Move] ✓ Move validated locally:', moveResult.san);
+    // [Frontend Move] ✓ Move validated locally:', moveResult.san);
 
     const optimisticMoveNumber = lastMoveNumberRef.current + 1;
     const tempMoveId = `temp-${Date.now()}`;
@@ -396,7 +396,7 @@ export default function GamePage() {
     };
 
     const immediateUpdateStart = performance.now();
-    console.log('[⏱️ TIMING] Applying immediate local update at:', immediateUpdateStart - dropTime, 'ms after drop');
+    // [⏱️ TIMING] Applying immediate local update at:', immediateUpdateStart - dropTime, 'ms after drop');
 
     lastMoveNumberRef.current = optimisticMoveNumber;
     setMoves((prev) => [...prev, optimisticMove]);
@@ -423,22 +423,14 @@ export default function GamePage() {
     });
 
     const immediateUpdateEnd = performance.now();
-    console.log('[⏱️ TIMING] ✓ IMMEDIATE UPDATE COMPLETE at:', immediateUpdateEnd - dropTime, 'ms after drop');
-    console.log('[Frontend Move] ✓ Board updated instantly - piece on destination square');
+    // [⏱️ TIMING] ✓ IMMEDIATE UPDATE COMPLETE at:', immediateUpdateEnd - dropTime, 'ms after drop');
+    // [Frontend Move] ✓ Board updated instantly - piece on destination square');
 
     const apiRequestStart = performance.now();
-    console.log('[⏱️ TIMING] Starting API request at:', apiRequestStart - dropTime, 'ms after drop');
+    // [⏱️ TIMING] Starting API request at:', apiRequestStart - dropTime, 'ms after drop');
 
     try {
-      console.log('[Frontend Move] Checking session...');
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      console.log('[Frontend Move] Session check:', {
-        hasSession: !!session,
-        hasError: !!sessionError,
-        userId: session?.user?.id,
-        error: sessionError
-      });
 
       if (sessionError) {
         console.error('[Frontend Move] Session error:', sessionError);
@@ -461,7 +453,7 @@ export default function GamePage() {
         return false;
       }
 
-      console.log('[Frontend Move] ✓ Session valid');
+      // [Frontend Move] ✓ Session valid');
 
       const movePayload = {
         gameId: game.id,
@@ -471,14 +463,14 @@ export default function GamePage() {
         promotion,
       };
 
-      console.log('[Frontend Move] ===== CLIENT AUTH DEBUG =====');
-      console.log('[Frontend Move] Session access token:', session.access_token ? 'present (' + session.access_token.substring(0, 20) + '...)' : 'MISSING');
-      console.log('[Frontend Move] All cookies:', document.cookie);
-      console.log('[Frontend Move] Supabase cookies:', document.cookie.split(';').filter(c => c.includes('sb-')));
-      console.log('[Frontend Move] ===== END CLIENT AUTH DEBUG =====');
+      // [Frontend Move] ===== CLIENT AUTH DEBUG =====');
+      // [Frontend Move] Session access token:', session.access_token ? 'present (' + session.access_token.substring(0, 20) + '...)' : 'MISSING');
+      // [Frontend Move] All cookies:', document.cookie);
+      // [Frontend Move] Supabase cookies:', document.cookie.split(';').filter(c => c.includes('sb-')));
+      // [Frontend Move] ===== END CLIENT AUTH DEBUG =====');
 
-      console.log('[Frontend Move] Calling API with payload:', movePayload);
-      console.log('[Frontend Move] Using cookie-based authentication');
+      // [Frontend Move] Calling API with payload:', movePayload);
+      // [Frontend Move] Using cookie-based authentication');
 
       const response = await fetch('/api/move', {
         method: 'POST',
@@ -490,8 +482,8 @@ export default function GamePage() {
       });
 
       const apiResponseTime = performance.now();
-      console.log('[⏱️ TIMING] API response received at:', apiResponseTime - dropTime, 'ms after drop');
-      console.log('[⏱️ TIMING] API round-trip took:', apiResponseTime - apiRequestStart, 'ms');
+      // [⏱️ TIMING] API response received at:', apiResponseTime - dropTime, 'ms after drop');
+      // [⏱️ TIMING] API round-trip took:', apiResponseTime - apiRequestStart, 'ms');
 
       const result = await response.json();
 
@@ -506,14 +498,14 @@ export default function GamePage() {
         return false;
       }
 
-      console.log('[Frontend Move] ✓ Server confirmed move');
-      console.log('[⏱️ TIMING] Total time from drop to server confirmation:', apiResponseTime - dropTime, 'ms');
+      // [Frontend Move] ✓ Server confirmed move');
+      // [⏱️ TIMING] Total time from drop to server confirmation:', apiResponseTime - dropTime, 'ms');
 
       if (result.moveId && result.moveId !== tempMoveId) {
         setMoves((prev) => prev.map(m =>
           m.id === tempMoveId ? { ...m, id: result.moveId } : m
         ));
-        console.log('[Frontend Move] ✓ Updated temp move ID to real ID:', result.moveId);
+        // [Frontend Move] ✓ Updated temp move ID to real ID:', result.moveId);
       }
 
       setMovingPiece(false);
