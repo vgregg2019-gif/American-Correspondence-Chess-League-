@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
-  // [Middleware] Processing request:', request.nextUrl.pathname);
+  console.log('[Middleware] Processing request:', request.nextUrl.pathname);
 
   let response = NextResponse.next({
     request: {
@@ -47,20 +47,21 @@ export async function middleware(request: NextRequest) {
   const allCookies = request.cookies.getAll();
   const authCookies = allCookies.filter(c => c.name.includes('sb-') || c.name.includes('auth'));
 
-  // [Middleware] ===== REQUEST PROCESSING =====');
-  // [Middleware] Path:', request.nextUrl.pathname);
-  // [Middleware] Method:', request.method);
-  // [Middleware] Total cookies:', allCookies.length);
-  // [Middleware] Auth cookies:', authCookies.length);
+  console.log('[Middleware] ===== REQUEST PROCESSING =====');
+  console.log('[Middleware] Path:', request.nextUrl.pathname);
+  console.log('[Middleware] Method:', request.method);
+  console.log('[Middleware] Total cookies:', allCookies.length);
+  console.log('[Middleware] Auth cookies:', authCookies.length);
 
   if (session) {
+    console.log('[Middleware] ✓ Session found, user:', session.user.id);
   } else if (error) {
-    // [Middleware] ❌ Session error:', error.message);
+    console.log('[Middleware] ❌ Session error:', error.message);
   } else {
-    // [Middleware] ⚠️ No session (user not logged in)');
+    console.log('[Middleware] ⚠️ No session (user not logged in)');
   }
 
-  // [Middleware] ===== END REQUEST PROCESSING =====');
+  console.log('[Middleware] ===== END REQUEST PROCESSING =====');
 
   return response;
 }

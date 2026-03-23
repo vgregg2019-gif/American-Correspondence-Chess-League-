@@ -60,14 +60,14 @@ export async function POST(req: NextRequest) {
     console.log('[Move API] ✓ User authenticated:', user.id);
 
     if (user.id !== playerId) {
-      // [Move API] User ID mismatch');
+      console.log('[Move API] User ID mismatch');
       return NextResponse.json(
         { error: 'Player ID does not match authenticated user' },
         { status: 403 }
       );
     }
 
-    // [Move API] Fetching game from database...');
+    console.log('[Move API] Fetching game from database...');
     const { data: game, error: gameError } = await supabase
       .from('games')
       .select('*')
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (game.status !== 'active') {
-      // [Move API] Game not active:', game.status);
+      console.log('[Move API] Game not active:', game.status);
       return NextResponse.json(
         { error: 'Game is not active' },
         { status: 400 }
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     const isBlack = game.black_player_id === playerId;
 
     if (!isWhite && !isBlack) {
-      // [Move API] Player not in this game');
+      console.log('[Move API] Player not in this game');
       return NextResponse.json(
         { error: 'You are not a player in this game' },
         { status: 403 }
@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
       ? movesCount[0].move_number + 1
       : 1;
 
-    // [Move API] Next move number:', nextMoveNumber);
+    console.log('[Move API] Next move number:', nextMoveNumber);
 
     const now = new Date();
     const nowISO = now.toISOString();
@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
 
     const clockUpdate = calculateClock(clockState, now);
 
-    // [Move API] Clock calculation:', clockUpdate);
+    console.log('[Move API] Clock calculation:', clockUpdate);
 
     let newStatus: 'active' | 'finished' = 'active';
     let newResult: string | null = null;
@@ -163,11 +163,11 @@ export async function POST(req: NextRequest) {
     if (moveResult.isCheckmate) {
       newStatus = 'finished';
       newResult = isWhite ? '1-0' : '0-1';
-      // [Move API] Checkmate! Result:', newResult);
+      console.log('[Move API] Checkmate! Result:', newResult);
     } else if (moveResult.isDraw || moveResult.isStalemate) {
       newStatus = 'finished';
       newResult = '1/2-1/2';
-      // [Move API] Draw! Result:', newResult);
+      console.log('[Move API] Draw! Result:', newResult);
     }
 
     const nextTurn: 'white' | 'black' = currentTurn === 'white' ? 'black' : 'white';
@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
       ? getNextTimeoutAt(nextTurn, clockUpdate.whiteRemaining, clockUpdate.blackRemaining, now)
       : null;
 
-    // [Move API] Inserting move into database...');
+    console.log('[Move API] Inserting move into database...');
     const { data: insertedMove, error: moveInsertError } = await supabase
       .from('moves')
       .insert({
@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // [Move API] Updating game state...');
+    console.log('[Move API] Updating game state...');
     const { data: updatedGame, error: gameUpdateError } = await supabase
       .from('games')
       .update({
@@ -219,7 +219,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // [Move API] ✓ Move processed successfully');
+    console.log('[Move API] ✓ Move processed successfully');
     return NextResponse.json({
       success: true,
       moveId: insertedMove.id,
