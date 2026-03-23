@@ -22,10 +22,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check for Authorization header first (more reliable than cookies)
-    const authHeader = req.headers.get('authorization');
-    console.log('[Move API] Auth header present:', !!authHeader);
-
     // Log all cookies to debug auth issue
     const { cookies } = await import('next/headers');
     const cookieStore = await cookies();
@@ -34,7 +30,6 @@ export async function POST(req: NextRequest) {
     const authCookies = allCookies.filter(c => c.name.includes('sb-') || c.name.includes('auth'));
 
     console.log('[Move API] ===== AUTH DEBUG =====');
-    console.log('[Move API] Authorization header:', authHeader ? 'present (Bearer token)' : 'MISSING');
     console.log('[Move API] Total cookies:', allCookies.length);
     console.log('[Move API] Auth cookies:', authCookies.length);
 
@@ -48,24 +43,10 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createServerClient();
 
-    // Try to get session from header token first, fall back to cookies
-    let session = null;
-    let sessionError = null;
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      console.log('[Move API] Using Authorization header token');
-      const { data, error } = await supabase.auth.getUser(token);
-      if (data.user) {
-        session = { user: data.user, access_token: token };
-      }
-      sessionError = error;
-    } else {
-      console.log('[Move API] Trying cookie-based session');
-      const { data, error } = await supabase.auth.getSession();
-      session = data.session;
-      sessionError = error;
-    }
+    // Use cookie-based session (set by middleware and client)
+    console.log('[Move API] Reading session from cookies');
+    const { data, error: sessionError } = await supabase.auth.getSession();
+    const session = data.session;
 
     console.log('[Move API] ===== SESSION DEBUG =====');
     console.log('[Move API] Session check result:', {

@@ -478,25 +478,15 @@ export default function GamePage() {
       console.log('[Frontend Move] ===== END CLIENT AUTH DEBUG =====');
 
       console.log('[Frontend Move] Calling API with payload:', movePayload);
-      console.log('[Frontend Move] Using Authorization header (Bearer token) + cookies as fallback');
-
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      // Add Authorization header with access token (more reliable than cookies)
-      if (session.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
-        console.log('[Frontend Move] ✓ Authorization header set');
-      } else {
-        console.log('[Frontend Move] ⚠️ No access token available, relying on cookies only');
-      }
+      console.log('[Frontend Move] Using cookie-based authentication');
 
       const response = await fetch('/api/move', {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(movePayload),
-        credentials: 'include', // Still send cookies as fallback
+        credentials: 'include', // Send cookies for authentication
       });
 
       const apiResponseTime = performance.now();
