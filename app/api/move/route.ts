@@ -7,6 +7,15 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('[Move API] ===== POST /api/move REQUEST =====');
+    console.log('[Move API] Headers:', Object.fromEntries(req.headers.entries()));
+
+    const allCookies = req.cookies.getAll();
+    const authCookies = allCookies.filter(c => c.name.includes('sb-') || c.name.includes('auth'));
+    console.log('[Move API] Total cookies:', allCookies.length);
+    console.log('[Move API] Auth cookies:', authCookies.length);
+    console.log('[Move API] Auth cookie names:', authCookies.map(c => c.name));
+
     const body = await req.json();
     const { gameId, playerId, from, to, promotion } = body;
 
@@ -17,19 +26,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    console.log('[Move API] Creating Supabase client...');
     const supabase = await createServerClient();
 
-    // CRITICAL: Use getUser() instead of getSession() in API routes
-    // getUser() validates the JWT and works correctly with cookies in Route Handlers
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    const user = userData.user;
+    // In Route Handlers, use getSession() because cookies are read-only
+    // getUser() requires the ability to refresh tokens which needs cookie writes
+    // Middleware already refreshed the session, so getSession() is safe
+    console.log('[Move API] Calling getSession()...');
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const user = session?.user;
 
-    if (userError || !user) {
+    console.log('[Move API] getSession() result:', {
+      hasSession: !!session,
+      hasUser: !!user,
+      userId: user?.id,
+      hasError: !!sessionError,
+      errorMessage: sessionError?.message
+    });
+
+    if (sessionError || !user) {
+      console.error('[Move API] ❌ Authentication failed - returning 401');
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
       );
     }
+
+    console.log('[Move API] ✓ User authenticated:', user.id);
 
     if (user.id !== playerId) {
       // [Move API] User ID mismatch');
