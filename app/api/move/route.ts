@@ -8,13 +8,18 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   try {
     console.log('[Move API] ===== POST /api/move REQUEST =====');
-    console.log('[Move API] Headers:', Object.fromEntries(req.headers.entries()));
 
     const allCookies = req.cookies.getAll();
     const authCookies = allCookies.filter(c => c.name.includes('sb-') || c.name.includes('auth'));
-    console.log('[Move API] Total cookies:', allCookies.length);
-    console.log('[Move API] Auth cookies:', authCookies.length);
-    console.log('[Move API] Auth cookie names:', authCookies.map(c => c.name));
+    console.log('[Move API] Total cookies from request:', allCookies.length);
+    console.log('[Move API] Auth cookies from request:', authCookies.length);
+    console.log('[Move API] Auth cookie names from request:', authCookies.map(c => c.name));
+
+    if (authCookies.length > 0) {
+      authCookies.forEach(c => {
+        console.log(`[Move API] Cookie ${c.name}:`, c.value.substring(0, 50) + '...');
+      });
+    }
 
     const body = await req.json();
     const { gameId, playerId, from, to, promotion } = body;
@@ -26,8 +31,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('[Move API] Creating Supabase client...');
-    const supabase = await createServerClient();
+    console.log('[Move API] Creating Supabase client from request...');
+    const supabase = await createServerClient(req);
 
     // In Route Handlers, use getSession() because cookies are read-only
     // getUser() requires the ability to refresh tokens which needs cookie writes
