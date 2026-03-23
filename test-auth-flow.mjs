@@ -9,8 +9,9 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wksfkmecrqwnovjybbna.supabase.co';
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indrc2ZrbWVjcnF3bm92anliYm5hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxOTY4NjUsImV4cCI6MjA4OTc3Mjg2NX0.-6qrIhGTOJiAsZit7EneFcUBOdEew3YN0gMz9PouxnA';
+// CRITICAL: These MUST match your .env file
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ukdoozqwekwlupxurswt.supabase.co';
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrZG9venF3ZWt3bHVweHVyc3d0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDIyNTA4MzcsImV4cCI6MjA1NzgyNjgzN30.IFRoaXNJc0FQbGFjZWhvbGRlcktleUZvclRlc3RpbmdPbmx5';
 
 // For deployed testing, change this to your deployed URL
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
