@@ -43,58 +43,29 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createServerClient();
 
-    // Use cookie-based session (set by middleware and client)
-    console.log('[Move API] Reading session from cookies');
-    const { data, error: sessionError } = await supabase.auth.getSession();
-    const session = data.session;
+    // CRITICAL: Use getUser() instead of getSession() in API routes
+    // getUser() validates the JWT and works correctly with cookies in Route Handlers
+    // getSession() only reads from storage without validation
+    console.log('[Move API] Validating user from JWT');
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    const user = userData.user;
 
-    console.log('[Move API] ===== SESSION DEBUG =====');
-    console.log('[Move API] Session check result:', {
-      hasSession: !!session,
-      sessionUserId: session?.user?.id,
-      sessionUserEmail: session?.user?.email,
-      sessionError: sessionError?.message,
-      sessionErrorName: sessionError?.name,
-      sessionErrorStatus: sessionError?.status,
-      accessToken: session?.access_token ? 'present (' + session.access_token.substring(0, 20) + '...)' : 'missing',
-      refreshToken: session?.refresh_token ? 'present (length: ' + session.refresh_token.length + ')' : 'missing',
+    console.log('[Move API] User validation result:', {
+      hasUser: !!user,
+      userId: user?.id,
+      userEmail: user?.email,
+      error: userError?.message
     });
 
-    if (sessionError) {
-      console.log('[Move API] ❌ Session error details:', {
-        message: sessionError.message,
-        name: sessionError.name,
-        status: sessionError.status,
-        fullError: JSON.stringify(sessionError, null, 2)
-      });
-    }
-
-    if (!session) {
-      console.log('[Move API] ❌ No session object returned');
-      console.log('[Move API] Possible causes:');
-      console.log('[Move API]   1. User not logged in');
-      console.log('[Move API]   2. Session expired');
-      console.log('[Move API]   3. Auth cookies not being sent from client');
-      console.log('[Move API]   4. Middleware not refreshing session');
-      console.log('[Move API]   5. Cookie domain/path mismatch');
-    }
-
-    if (!session?.user) {
-      console.log('[Move API] ❌ No user in session');
-    }
-
-    console.log('[Move API] ===== END SESSION DEBUG =====');
-
-    if (sessionError || !session?.user) {
+    if (userError || !user) {
       console.log('[Move API] 🚫 RETURNING 401 - Not authenticated');
-      console.log('[Move API] Reason:', !session ? 'No session' : !session.user ? 'No user in session' : sessionError?.message);
+      console.log('[Move API] Reason:', userError?.message || 'No user found');
       return NextResponse.json(
         {
           error: 'Not authenticated',
           debug: {
-            hasSession: !!session,
-            hasUser: !!session?.user,
-            sessionError: sessionError?.message,
+            hasUser: !!user,
+            userError: userError?.message,
             cookieCount: allCookies.length,
             authCookieCount: authCookies.length,
           }
@@ -102,8 +73,6 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
-
-    const user = session.user;
 
     console.log('[Move API] Auth validated:', {
       userId: user.id,

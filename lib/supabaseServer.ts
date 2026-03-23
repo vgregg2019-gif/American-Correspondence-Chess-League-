@@ -19,15 +19,10 @@ export async function createServerClient() {
           return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options);
-            });
-          } catch (error) {
-            // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
+          // In Route Handlers, we can't set cookies during read phase
+          // The middleware handles cookie refreshing
+          // This method is only called when the client tries to update cookies
+          // which shouldn't happen in our read-only API route usage
         },
       },
     }
