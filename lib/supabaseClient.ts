@@ -1,7 +1,7 @@
 import { createBrowserClient } from '@supabase/ssr';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 console.log('[Supabase Client] Initialization:', {
   hasUrl: !!supabaseUrl,
@@ -9,21 +9,22 @@ console.log('[Supabase Client] Initialization:', {
   urlValue: supabaseUrl || 'NOT SET',
   urlHost: supabaseUrl ? new URL(supabaseUrl).host : 'N/A',
   keyLength: supabaseAnonKey?.length || 0,
-  keyPrefix: supabaseAnonKey ? supabaseAnonKey.substring(0, 20) + '...' : 'NOT SET',
+  keyPrefix: supabaseAnonKey ? supabaseAnonKey.substring(0, 50) + '...' : 'NOT SET',
+  keySuffix: supabaseAnonKey ? '...' + supabaseAnonKey.substring(supabaseAnonKey.length - 20) : 'NOT SET',
 });
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('[Supabase Client] CRITICAL: Missing environment variables!', {
-    NEXT_PUBLIC_SUPABASE_URL: supabaseUrl ? 'present' : 'MISSING',
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: supabaseAnonKey ? 'present' : 'MISSING',
-  });
+  const error = '[Supabase Client] CRITICAL: Missing environment variables! ' +
+    `URL: ${supabaseUrl ? 'OK' : 'MISSING'}, KEY: ${supabaseAnonKey ? 'OK' : 'MISSING'}`;
+  console.error(error);
+  throw new Error(error);
 }
 
 // CRITICAL: createBrowserClient automatically uses cookies when available
 // This ensures server can access session for SSR and API routes
 export const supabase = createBrowserClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key'
+  supabaseUrl,
+  supabaseAnonKey
 );
 
 export type Database = {
