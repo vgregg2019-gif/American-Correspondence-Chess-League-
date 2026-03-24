@@ -1,15 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
-
-// UNMISTAKABLE RUNTIME MARKER
-console.log('██████████████████████████████████████████████');
-console.log('█ REGISTER_CLIENT_V1_MOUNTED                █');
-console.log('█ Timestamp:', new Date().toISOString(), '      █');
-console.log('██████████████████████████████████████████████');
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -19,29 +13,11 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    console.log('██████████████████████████████████████████████');
-    console.log('█ REGISTER_USEEFFECT_V1 - Component Mounted █');
-    console.log('█ Location:', window.location.href, '        █');
-    console.log('██████████████████████████████████████████████');
-  }, []);
-
   const handleRegister = async (e: React.FormEvent) => {
-    console.log('██████████████████████████████████████████████');
-    console.log('█ REGISTER_FORM_SUBMIT_V1                   █');
-    console.log('█ handleRegister() called                   █');
-    console.log('██████████████████████████████████████████████');
-
     e.preventDefault();
+    console.log('[Register] Form submitted');
     setError('');
     setLoading(true);
-
-    console.log('[Register] Environment check:', {
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'loaded' : 'MISSING',
-      urlValue: process.env.NEXT_PUBLIC_SUPABASE_URL || 'not set',
-      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'loaded' : 'MISSING',
-      keyLength: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length || 0,
-    });
 
     if (username.length < 3) {
       setError('Username must be at least 3 characters');
@@ -56,7 +32,6 @@ export default function RegisterPage() {
     }
 
     try {
-      console.log('[Register] Checking for existing username:', username);
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('username')
@@ -69,7 +44,7 @@ export default function RegisterPage() {
         return;
       }
 
-      console.log('[Register] Attempting sign-up for email:', email);
+      console.log('[Register] Calling signUp...');
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -80,43 +55,25 @@ export default function RegisterPage() {
         }
       });
 
-      console.log('[Register] Sign-up response:', {
-        hasData: !!data,
-        hasUser: !!data?.user,
-        userId: data?.user?.id,
-        hasSession: !!data?.session,
-        hasError: !!signUpError,
-        errorMessage: signUpError?.message,
-      });
-
       if (signUpError) {
-        console.error('[Register] Sign-up error:', signUpError);
+        console.error('[Register] Error:', signUpError.message);
         setError(signUpError.message);
         setLoading(false);
         return;
       }
 
       if (data.user) {
-        console.log('[Register] User created successfully:', data.user.id);
-        console.log('[Register] Profile auto-created by trigger with username:', username);
-
+        console.log('[Register] Success');
         if (data.session) {
-          console.log('[Register] Session established, redirecting to dashboard');
           router.push('/dashboard');
         } else {
-          console.log('[Register] No session - email confirmation may be required');
           setError('Account created! Please check your email to confirm your account before logging in.');
           setLoading(false);
         }
       }
     } catch (err) {
-      console.error('[Register] Network/exception failure:', {
-        error: err,
-        message: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined,
-        type: typeof err,
-      });
-      setError(`Network error: ${err instanceof Error ? err.message : 'An unexpected error occurred'}`);
+      console.error('[Register] Exception:', err);
+      setError(`Failed to register: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setLoading(false);
     }
   };
@@ -130,9 +87,6 @@ export default function RegisterPage() {
         </div>
 
         <div className="card">
-          <div className="text-xs text-yellow-400 mb-2 font-mono">
-            ██ REGISTER_CLIENT_V1 - HYDRATION TEST ██
-          </div>
           <h2 className="text-2xl font-semibold mb-6 text-center">Create Account</h2>
 
           {error && (
@@ -193,14 +147,8 @@ export default function RegisterPage() {
               type="submit"
               className="btn-primary w-full"
               disabled={loading}
-              onClick={(e) => {
-                console.log('██████████████████████████████████████████████');
-                console.log('█ REGISTER_BUTTON_CLICK_V1                  █');
-                console.log('█ Direct onClick handler fired              █');
-                console.log('██████████████████████████████████████████████');
-              }}
             >
-              {loading ? 'Creating account...' : 'Create Account V1-HYDRATION-TEST'}
+              {loading ? 'Creating account...' : 'Create Account'}
             </button>
           </form>
 
