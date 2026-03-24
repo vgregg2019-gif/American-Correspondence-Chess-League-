@@ -15,9 +15,17 @@ export default function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('[Register] Form submitted');
     setError('');
     setLoading(true);
+
+    // Log runtime configuration
+    console.group('[Register] Runtime Configuration');
+    console.log('NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log('NEXT_PUBLIC_SUPABASE_ANON_KEY (first 50 chars):',
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 50));
+    console.log('Email:', email);
+    console.log('Username:', username);
+    console.groupEnd();
 
     if (username.length < 3) {
       setError('Username must be at least 3 characters');
@@ -56,14 +64,19 @@ export default function RegisterPage() {
       });
 
       if (signUpError) {
-        console.error('[Register] Error:', signUpError.message);
-        setError(signUpError.message);
+        console.group('[Register] Error Details');
+        console.error('Message:', signUpError.message);
+        console.error('Status:', signUpError.status);
+        console.error('Name:', signUpError.name);
+        console.error('Full error object:', JSON.stringify(signUpError, null, 2));
+        console.groupEnd();
+        setError(`${signUpError.message} (Status: ${signUpError.status})`);
         setLoading(false);
         return;
       }
 
       if (data.user) {
-        console.log('[Register] Success');
+        console.log('[Register] Success, user ID:', data.user.id);
         if (data.session) {
           router.push('/dashboard');
         } else {
@@ -72,7 +85,15 @@ export default function RegisterPage() {
         }
       }
     } catch (err) {
-      console.error('[Register] Exception:', err);
+      console.group('[Register] Exception');
+      console.error('Error:', err);
+      console.error('Type:', typeof err);
+      console.error('String:', String(err));
+      if (err instanceof Error) {
+        console.error('Message:', err.message);
+        console.error('Stack:', err.stack);
+      }
+      console.groupEnd();
       setError(`Failed to register: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setLoading(false);
     }

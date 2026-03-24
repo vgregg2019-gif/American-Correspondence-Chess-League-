@@ -14,9 +14,16 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('[Login] Form submitted');
     setError('');
     setLoading(true);
+
+    // Log runtime configuration
+    console.group('[Login] Runtime Configuration');
+    console.log('NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log('NEXT_PUBLIC_SUPABASE_ANON_KEY (first 50 chars):',
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 50));
+    console.log('Email attempting login:', email);
+    console.groupEnd();
 
     try {
       console.log('[Login] Calling signInWithPassword...');
@@ -26,21 +33,35 @@ export default function LoginPage() {
       });
 
       if (signInError) {
-        console.error('[Login] Error:', signInError.message);
-        setError(signInError.message);
+        console.group('[Login] Error Details');
+        console.error('Message:', signInError.message);
+        console.error('Status:', signInError.status);
+        console.error('Name:', signInError.name);
+        console.error('Full error object:', JSON.stringify(signInError, null, 2));
+        console.groupEnd();
+        setError(`${signInError.message} (Status: ${signInError.status})`);
         setLoading(false);
         return;
       }
 
       if (data.user) {
-        console.log('[Login] Success, redirecting to dashboard');
+        console.log('[Login] Success, user ID:', data.user.id);
         router.push('/dashboard');
       } else {
+        console.warn('[Login] No user in response');
         setError('Authentication succeeded but no user data returned');
         setLoading(false);
       }
     } catch (err) {
-      console.error('[Login] Exception:', err);
+      console.group('[Login] Exception');
+      console.error('Error:', err);
+      console.error('Type:', typeof err);
+      console.error('String:', String(err));
+      if (err instanceof Error) {
+        console.error('Message:', err.message);
+        console.error('Stack:', err.stack);
+      }
+      console.groupEnd();
       setError(`Failed to sign in: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setLoading(false);
     }
